@@ -32,6 +32,12 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleDebug
 
+      - name: Check APK permissions
+        run: |
+          AAPT=$(find $ANDROID_HOME -name "aapt" | head -n 1)
+          echo "Using aapt at: $AAPT"
+          $AAPT dump permissions android/app/build/outputs/apk/debug/app-debug.apk
+
       - uses: actions/upload-artifact@v4
         with:
           name: paytrack-debug-apk
