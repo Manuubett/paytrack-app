@@ -32,6 +32,10 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleDebug
 
+      - name: Show manifest merger log
+        run: |
+          find android -name "manifest-merger-debug-report.txt" -exec cat {} \;
+
       - name: Check APK permissions
         run: |
           AAPT=$(find $ANDROID_HOME -name "aapt" | head -n 1)
