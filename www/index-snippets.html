@@ -1,0 +1,68 @@
+<!--
+    ADD TO index.html
+
+    Your current index.html has no SMS modal, but sms.js expects one,
+    so it is included here.
+-->
+
+
+<!-- 1. Buttons: put next to "Record Payment" in .action-buttons -->
+
+<button class="secondary-btn" onclick="openSmsModal()">
+    💬 Paste SMS
+</button>
+
+
+<!-- 2. Review banner: put just above <div id="employeeList"> -->
+
+<div id="reviewBanner" class="review-banner">
+    <span>
+        <strong id="reviewCount">0</strong>
+        M-PESA payment(s) need review.
+    </span>
+    <button onclick="openReview()">Review now</button>
+</div>
+
+
+<!-- 3. SMS modal: put with the other modals, before the scripts -->
+
+<div id="smsModal" class="modal">
+    <div class="modal-box details-box">
+
+        <div class="modal-header">
+            <h2>Import M-PESA SMS</h2>
+            <button onclick="closeSmsModal()" class="close-btn">×</button>
+        </div>
+
+        <textarea
+            id="smsText"
+            rows="6"
+            placeholder="Paste M-PESA messages here..."
+        ></textarea>
+
+        <button class="secondary-btn" onclick="readSmsMessages()">
+            Read Messages
+        </button>
+
+        <div id="smsPreview"></div>
+
+        <button
+            id="smsImportBtn"
+            class="save-btn"
+            style="display:none;"
+            onclick="importSmsMessages()"
+        >
+            Import Selected
+        </button>
+
+    </div>
+</div>
+
+
+<!-- 4. Scripts: replace the bottom script tags with these, in this order -->
+
+<script src="app.js"></script>
+<script src="import.js"></script>
+<script src="sms.js"></script>
+<script src="sms-parser.js"></script>
+<script src="android-bridge.js"></script>

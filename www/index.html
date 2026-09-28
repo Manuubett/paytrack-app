@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>PayTrack | Payment Reconciliation</title>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <!-- HEADER -->
+    <header class="topbar">
+        <div>
+            <h1>PayTrack</h1>
+            <p>Payment Reconciliation</p>
+        </div>
+
+        <button class="add-btn" onclick="openEmployeeModal()">
+            + Add Employee
+        </button>
+    </header>
+
+
+    <main class="container">
+
+        <!-- SUMMARY -->
+        <section class="summary">
+
+            <div class="summary-card">
+                <span>Employees</span>
+                <strong id="employeeCount">0</strong>
+            </div>
+
+            <div class="summary-card">
+                <span>Payments</span>
+                <strong id="paymentCount">0</strong>
+            </div>
+
+            <div class="summary-card">
+                <span>Total Received</span>
+                <strong id="totalReceived">KSh 0</strong>
+            </div>
+
+            <div class="summary-card">
+                <span>Outstanding</span>
+                <strong id="totalOutstanding">KSh 0</strong>
+            </div>
+
+        </section>
+
+
+        <!-- EMPLOYEES -->
+        <section class="section">
+
+            <div class="section-header">
+                <div>
+                    <h2>Employees</h2>
+                    <p>Track payments received from each employee.</p>
+                </div>
+
+                <div class="action-buttons">
+
+                    <button
+                        class="secondary-btn"
+                        onclick="document.getElementById('statementFile').click()"
+                    >
+                        📄 Import Statement
+                    </button>
+
+                    <button
+                        class="secondary-btn"
+                        onclick="openPaymentModal()"
+                    >
+                        + Record Payment
+                    </button>
+
+                </div>
+
+                <input
+                    type="file"
+                    id="statementFile"
+                    accept=".csv,.txt"
+                    style="display:none"
+                >
+            </div>
+
+            <div id="employeeList" class="employee-list">
+                <!-- Employees will appear here -->
+            </div>
+
+            <div id="emptyState" class="empty">
+                <h3>No employees yet</h3>
+
+                <p>
+                    Add an employee to start tracking payments.
+                </p>
+
+                <button class="add-btn" onclick="openEmployeeModal()">
+                    + Add First Employee
+                </button>
+            </div>
+
+        </section>
+
+    </main>
+
+
+    <!-- ========================= -->
+    <!-- ADD EMPLOYEE MODAL -->
+    <!-- ========================= -->
+
+    <div id="employeeModal" class="modal">
+
+        <div class="modal-box">
+
+            <div class="modal-header">
+                <h2>Add Employee</h2>
+
+                <button onclick="closeEmployeeModal()" class="close-btn">
+                    ×
+                </button>
+            </div>
+
+
+            <form id="employeeForm">
+
+                <label>
+                    Employee Name
+
+                    <input
+                        type="text"
+                        id="employeeName"
+                        placeholder="e.g. John Kipkorir"
+                        required
+                    >
+                </label>
+
+
+                <label>
+                    Phone Number
+
+                    <input
+                        type="tel"
+                        id="employeePhone"
+                        placeholder="07XXXXXXXX"
+                    >
+                </label>
+
+
+                <label>
+                    Expected Payment
+
+                    <input
+                        type="number"
+                        id="expectedAmount"
+                        placeholder="5000"
+                        min="0"
+                        required
+                    >
+                </label>
+
+
+                <label>
+                    Payment Frequency
+
+                    <select id="paymentFrequency">
+
+                        <option value="0">
+                            No fixed schedule
+                        </option>
+
+                        <option value="4">
+                            Every 4 days
+                        </option>
+
+                        <option value="7">
+                            Every 7 days
+                        </option>
+
+                        <option value="14">
+                            Every 14 days
+                        </option>
+
+                        <option value="30">
+                            Every 30 days
+                        </option>
+
+                    </select>
+
+                </label>
+
+
+                <label>
+                    First Payment Due Date
+
+                    <input
+                        type="date"
+                        id="startDate"
+                        required
+                    >
+
+                    <small class="field-hint">
+                        Used to work out how many payments
+                        should have been received by today.
+                    </small>
+                </label>
+
+
+                <button type="submit" class="save-btn">
+                    Save Employee
+                </button>
+
+            </form>
+
+        </div>
+
+    </div>
+
+
+
+    <!-- ========================= -->
+    <!-- RECORD PAYMENT MODAL -->
+    <!-- ========================= -->
+
+    <div id="paymentModal" class="modal">
+
+        <div class="modal-box">
+
+            <div class="modal-header">
+
+                <h2>Record Payment</h2>
+
+                <button
+                    onclick="closePaymentModal()"
+                    class="close-btn">
+                    ×
+                </button>
+
+            </div>
+
+
+            <form id="paymentForm">
+
+                <label>
+                    Employee
+
+                    <select id="paymentEmployee" required>
+                    </select>
+
+                </label>
+
+
+                <label>
+                    Amount
+
+                    <input
+                        type="number"
+                        id="paymentAmount"
+                        placeholder="5000"
+                        min="0"
+                        required
+                    >
+
+                </label>
+
+
+                <label>
+                    Payment Date
+
+                    <input
+                        type="date"
+                        id="paymentDate"
+                        required
+                    >
+
+                </label>
+
+
+                <label>
+                    M-PESA Transaction ID
+
+                    <input
+                        type="text"
+                        id="transactionId"
+                        placeholder="e.g. QJD7ABC123"
+                    >
+
+                </label>
+
+
+                <button type="submit" class="save-btn">
+                    Save Payment
+                </button>
+
+            </form>
+
+        </div>
+
+    </div>
+
+
+
+    <!-- ========================= -->
+    <!-- EMPLOYEE DETAILS MODAL -->
+    <!-- ========================= -->
+
+    <div id="detailsModal" class="modal">
+
+        <div class="modal-box details-box">
+
+            <div class="modal-header">
+
+                <h2 id="detailsName">
+                    Employee
+                </h2>
+
+                <button
+                    onclick="closeDetailsModal()"
+                    class="close-btn">
+                    ×
+                </button>
+
+            </div>
+
+
+            <div id="detailsContent">
+                <!-- Details generated by JavaScript -->
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <script src="app.js"></script>
+    <script src="import.js"></script>
+
+</body>
+</html>
