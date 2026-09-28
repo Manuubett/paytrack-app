@@ -77,6 +77,10 @@
                         + Record Payment
                     </button>
 
+                    <button class="secondary-btn" onclick="openSmsModal()">
+                        💬 Paste SMS
+                    </button>
+
                 </div>
 
                 <input
@@ -85,6 +89,14 @@
                     accept=".csv,.txt"
                     style="display:none"
                 >
+            </div>
+
+            <div id="reviewBanner" class="review-banner" style="display:none;">
+                <span>
+                    <strong id="reviewCount">0</strong>
+                    M-PESA payment(s) need review.
+                </span>
+                <button onclick="openReview()">Review now</button>
             </div>
 
             <div id="employeeList" class="employee-list">
@@ -335,8 +347,50 @@
     </div>
 
 
+
+    <!-- ========================= -->
+    <!-- SMS IMPORT MODAL -->
+    <!-- ========================= -->
+
+    <div id="smsModal" class="modal">
+        <div class="modal-box details-box">
+
+            <div class="modal-header">
+                <h2>Import M-PESA SMS</h2>
+                <button onclick="closeSmsModal()" class="close-btn">×</button>
+            </div>
+
+            <textarea
+                id="smsText"
+                rows="6"
+                style="width:100%;"
+                placeholder="Paste M-PESA messages here..."
+            ></textarea>
+
+            <button class="secondary-btn" onclick="readSmsMessages()">
+                Read Messages
+            </button>
+
+            <div id="smsPreview"></div>
+
+            <button
+                id="smsImportBtn"
+                class="save-btn"
+                style="display:none;"
+                onclick="importSmsMessages()"
+            >
+                Import Selected
+            </button>
+
+        </div>
+    </div>
+
+
     <script src="app.js"></script>
     <script src="import.js"></script>
+    <script src="sms.js"></script>
+    <script src="sms-parser.js"></script>
+    <script src="android-bridge.js"></script>
 
 </body>
 </html>
