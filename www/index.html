@@ -3,9 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
     <title>PayTrack | Payment Reconciliation</title>
-
     <link rel="stylesheet" href="style.css">
 </head>
 
@@ -18,7 +16,7 @@
             <p>Payment Reconciliation</p>
         </div>
 
-        <button class="add-btn" onclick="openEmployeeModal()">
+        <button type="button" class="add-btn" onclick="openEmployeeModal()">
             + Add Employee
         </button>
     </header>
@@ -28,7 +26,6 @@
 
         <!-- SUMMARY -->
         <section class="summary">
-
             <div class="summary-card">
                 <span>Employees</span>
                 <strong id="employeeCount">0</strong>
@@ -48,7 +45,6 @@
                 <span>Outstanding</span>
                 <strong id="totalOutstanding">KSh 0</strong>
             </div>
-
         </section>
 
 
@@ -62,39 +58,33 @@
                 </div>
 
                 <div class="action-buttons">
-
-                    <button
-                        class="secondary-btn"
-                        onclick="document.getElementById('statementFile').click()"
-                    >
+                    <button type="button" class="secondary-btn"
+                            onclick="document.getElementById('statementFile').click()">
                         📄 Import Statement
                     </button>
 
-                    <button
-                        class="secondary-btn"
-                        onclick="openPaymentModal()"
-                    >
+                    <button type="button" class="secondary-btn" onclick="openPaymentModal()">
                         + Record Payment
                     </button>
 
-                    <button class="secondary-btn" onclick="openSmsModal()">
+                    <button type="button" class="secondary-btn" onclick="openSmsModal()">
                         💬 Paste SMS
                     </button>
-                    <button class="secondary-btn" onclick="openSmsGroupsModal()">
-    📥 Sync All SMS
-</button>
-<button class="secondary-btn" onclick="openDebugLog()">
-    🐛 Debug Log
-</button>
 
+                    <button type="button" class="secondary-btn" onclick="openSmsGroupsModal()">
+                        📥 Sync All SMS
+                    </button>
+
+                    <button type="button" class="secondary-btn" onclick="openFinanceModal()">
+                        📊 Income vs Expense
+                    </button>
+
+                    <button type="button" class="secondary-btn" onclick="openDebugLog()">
+                        🐛 Debug Log
+                    </button>
                 </div>
 
-                <input
-                    type="file"
-                    id="statementFile"
-                    accept=".csv,.txt"
-                    style="display:none"
-                >
+                <input type="file" id="statementFile" accept=".csv,.txt" style="display:none">
             </div>
 
             <div id="reviewBanner" class="review-banner" style="display:none;">
@@ -102,7 +92,7 @@
                     <strong id="reviewCount">0</strong>
                     M-PESA payment(s) need review.
                 </span>
-                <button onclick="openReview()">Review now</button>
+                <button type="button" onclick="openReview()">Review now</button>
             </div>
 
             <div id="employeeList" class="employee-list">
@@ -111,12 +101,8 @@
 
             <div id="emptyState" class="empty">
                 <h3>No employees yet</h3>
-
-                <p>
-                    Add an employee to start tracking payments.
-                </p>
-
-                <button class="add-btn" onclick="openEmployeeModal()">
+                <p>Add an employee to start tracking payments.</p>
+                <button type="button" class="add-btn" onclick="openEmployeeModal()">
                     + Add First Employee
                 </button>
             </div>
@@ -129,309 +115,222 @@
     <!-- ========================= -->
     <!-- ADD EMPLOYEE MODAL -->
     <!-- ========================= -->
-
-    <div id="employeeModal" class="modal">
-
+    <div id="employeeModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="employeeModalTitle">
         <div class="modal-box">
 
             <div class="modal-header">
-                <h2>Add Employee</h2>
-
-                <button onclick="closeEmployeeModal()" class="close-btn">
-                    ×
-                </button>
+                <h2 id="employeeModalTitle">Add Employee</h2>
+                <button type="button" onclick="closeEmployeeModal()" class="close-btn" aria-label="Close">×</button>
             </div>
-
 
             <form id="employeeForm">
 
                 <label>
                     Employee Name
-
-                    <input
-                        type="text"
-                        id="employeeName"
-                        placeholder="e.g. John Kipkorir"
-                        required
-                    >
+                    <input type="text" id="employeeName" placeholder="e.g. John Kipkorir" required>
                 </label>
-
 
                 <label>
                     Phone Number
-
-                    <input
-                        type="tel"
-                        id="employeePhone"
-                        placeholder="07XXXXXXXX"
-                    >
+                    <input type="tel" id="employeePhone" placeholder="07XXXXXXXX">
                 </label>
-
 
                 <label>
                     Expected Payment
-
-                    <input
-                        type="number"
-                        id="expectedAmount"
-                        placeholder="5000"
-                        min="0"
-                        required
-                    >
+                    <input type="number" id="expectedAmount" placeholder="5000" min="0" required>
                 </label>
-
 
                 <label>
                     Payment Frequency
-
                     <select id="paymentFrequency">
-
-                        <option value="0">
-                            No fixed schedule
-                        </option>
-
-                        <option value="4">
-                            Every 4 days
-                        </option>
-
-                        <option value="7">
-                            Every 7 days
-                        </option>
-
-                        <option value="14">
-                            Every 14 days
-                        </option>
-
-                        <option value="30">
-                            Every 30 days
-                        </option>
-
+                        <option value="0">No fixed schedule</option>
+                        <option value="4">Every 4 days</option>
+                        <option value="7">Every 7 days</option>
+                        <option value="14">Every 14 days</option>
+                        <option value="30">Every 30 days</option>
                     </select>
-
                 </label>
-
 
                 <label>
                     First Payment Due Date
-
-                    <input
-                        type="date"
-                        id="startDate"
-                        required
-                    >
-
+                    <input type="date" id="startDate" required>
                     <small class="field-hint">
-                        Used to work out how many payments
-                        should have been received by today.
+                        Used to work out how many payments should have been received by today.
                     </small>
                 </label>
 
-
-                <button type="submit" class="save-btn">
-                    Save Employee
-                </button>
+                <button type="submit" class="save-btn">Save Employee</button>
 
             </form>
-
         </div>
-
     </div>
-
 
 
     <!-- ========================= -->
     <!-- RECORD PAYMENT MODAL -->
     <!-- ========================= -->
-
-    <div id="paymentModal" class="modal">
-
+    <div id="paymentModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="paymentModalTitle">
         <div class="modal-box">
 
             <div class="modal-header">
-
-                <h2>Record Payment</h2>
-
-                <button
-                    onclick="closePaymentModal()"
-                    class="close-btn">
-                    ×
-                </button>
-
+                <h2 id="paymentModalTitle">Record Payment</h2>
+                <button type="button" onclick="closePaymentModal()" class="close-btn" aria-label="Close">×</button>
             </div>
-
 
             <form id="paymentForm">
 
                 <label>
                     Employee
-
-                    <select id="paymentEmployee" required>
-                    </select>
-
+                    <select id="paymentEmployee" required></select>
                 </label>
-
 
                 <label>
                     Amount
-
-                    <input
-                        type="number"
-                        id="paymentAmount"
-                        placeholder="5000"
-                        min="0"
-                        required
-                    >
-
+                    <input type="number" id="paymentAmount" placeholder="5000" min="0" required>
                 </label>
-
 
                 <label>
                     Payment Date
-
-                    <input
-                        type="date"
-                        id="paymentDate"
-                        required
-                    >
-
+                    <input type="date" id="paymentDate" required>
                 </label>
-
 
                 <label>
                     M-PESA Transaction ID
-
-                    <input
-                        type="text"
-                        id="transactionId"
-                        placeholder="e.g. QJD7ABC123"
-                    >
-
+                    <input type="text" id="transactionId" placeholder="e.g. QJD7ABC123">
                 </label>
 
-
-                <button type="submit" class="save-btn">
-                    Save Payment
-                </button>
+                <button type="submit" class="save-btn">Save Payment</button>
 
             </form>
-
         </div>
-
     </div>
 
+
+    <!-- ========================= -->
+    <!-- INCOME VS EXPENSE MODAL -->
+    <!-- (was wrongly nested inside the payment modal) -->
+    <!-- ========================= -->
+    <div id="financeModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="financeModalTitle">
+        <div class="modal-box details-box">
+            <div class="modal-header">
+                <h2 id="financeModalTitle">Income vs Expense</h2>
+                <button type="button" onclick="closeFinanceModal()" class="close-btn" aria-label="Close">×</button>
+            </div>
+            <div id="financeBody"></div>
+        </div>
+    </div>
 
 
     <!-- ========================= -->
     <!-- EMPLOYEE DETAILS MODAL -->
     <!-- ========================= -->
-
-    <div id="detailsModal" class="modal">
-
+    <div id="detailsModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="detailsName">
         <div class="modal-box details-box">
 
             <div class="modal-header">
-
-                <h2 id="detailsName">
-                    Employee
-                </h2>
-
-                <button
-                    onclick="closeDetailsModal()"
-                    class="close-btn">
-                    ×
-                </button>
-
+                <h2 id="detailsName">Employee</h2>
+                <button type="button" onclick="closeDetailsModal()" class="close-btn" aria-label="Close">×</button>
             </div>
-
 
             <div id="detailsContent">
                 <!-- Details generated by JavaScript -->
             </div>
 
         </div>
-
     </div>
-
 
 
     <!-- ========================= -->
     <!-- SMS IMPORT MODAL -->
     <!-- ========================= -->
-
-    <div id="smsModal" class="modal">
+    <div id="smsModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="smsModalTitle">
         <div class="modal-box details-box">
 
             <div class="modal-header">
-                <h2>Import M-PESA SMS</h2>
-                <button onclick="closeSmsModal()" class="close-btn">×</button>
+                <h2 id="smsModalTitle">Import M-PESA SMS</h2>
+                <button type="button" onclick="closeSmsModal()" class="close-btn" aria-label="Close">×</button>
             </div>
 
-            <textarea
-                id="smsText"
-                rows="6"
-                style="width:100%;"
-                placeholder="Paste M-PESA messages here..."
-            ></textarea>
+            <textarea id="smsText" rows="6" placeholder="Paste M-PESA messages here..."></textarea>
 
-            <button class="secondary-btn" onclick="readSmsMessages()">
+            <button type="button" class="secondary-btn sms-read-btn" onclick="readSmsMessages()">
                 Read Messages
             </button>
 
             <div id="smsPreview"></div>
 
-            <button
-                id="smsImportBtn"
-                class="save-btn"
-                style="display:none;"
-                onclick="importSmsMessages()"
-            >
+            <button type="button" id="smsImportBtn" class="save-btn" style="display:none;"
+                    onclick="importSmsMessages()">
                 Import Selected
             </button>
 
         </div>
     </div>
-    <div id="smsGroupsModal" class="modal">
-    <div class="modal-box details-box">
 
-        <div class="modal-header">
-            <h2>M-PESA Senders</h2>
-            <button onclick="closeSmsGroupsModal()" class="close-btn">×</button>
+
+    <!-- ========================= -->
+    <!-- SMS SENDER GROUPS MODAL -->
+    <!-- ========================= -->
+    <div id="smsGroupsModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="smsGroupsTitle">
+        <div class="modal-box details-box">
+
+            <div class="modal-header">
+                <h2 id="smsGroupsTitle">M-PESA Senders</h2>
+                <button type="button" onclick="closeSmsGroupsModal()" class="close-btn" aria-label="Close">×</button>
+            </div>
+
+            <p class="muted intro-text">
+                All M-PESA messages on this phone, grouped by sender.
+                Link a sender to an employee to start tracking their payments.
+            </p>
+
+            <input type="text" id="smsGroupSearch" class="search-input"
+                   placeholder="Search by name, number, or amount..."
+                   oninput="filterSmsGroups(this.value)">
+
+            <div id="smsGroupsList"></div>
+
         </div>
-
-        <p class="muted" style="margin-top:0;">
-            All M-PESA messages on this phone, grouped by sender.
-            Link a sender to an employee to start tracking their payments.
-        </p>
-        <input
-    type="text"
-    id="smsGroupSearch"
-    placeholder="Search by name, number, or amount..."
-    style="margin-bottom:10px;"
-    oninput="filterSmsGroups(this.value)"
->
-
-        <div id="smsGroupsList"></div>
-
     </div>
-</div>
-<div id="debugLogModal" class="modal">
-    <div class="modal-box details-box">
-        <div class="modal-header">
-            <h2>Debug Log</h2>
-            <button onclick="closeDebugLog()" class="close-btn">×</button>
+
+
+    <!-- ========================= -->
+    <!-- DEBUG LOG MODAL -->
+    <!-- ========================= -->
+    <div id="debugLogModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="debugLogTitle">
+        <div class="modal-box details-box">
+            <div class="modal-header">
+                <h2 id="debugLogTitle">Debug Log</h2>
+                <button type="button" onclick="closeDebugLog()" class="close-btn" aria-label="Close">×</button>
+            </div>
+            <pre id="debugLogContent" class="debug-log"></pre>
         </div>
-        <pre id="debugLogContent" style="white-space:pre-wrap; font-size:12px; max-height:60vh; overflow-y:auto; background:#f5f5f5; padding:10px; border-radius:8px;"></pre>
     </div>
-</div>
 
-<script src="debug-log.js"></script>
+
+    <script src="debug-log.js"></script>
     <script src="app.js"></script>
     <script src="import.js"></script>
     <script src="sms.js"></script>
     <script src="sms-parser.js"></script>
+    <script src="finance.js"></script>
     <script src="sms-groups.js"></script>
     <script src="android-bridge.js"></script>
 
+    <!-- Close any modal with Escape or by tapping the dark backdrop -->
+    <script>
+        document.addEventListener('keydown', function (e) {
+            if (e.key !== 'Escape') return;
+            document.querySelectorAll('.modal').forEach(function (m) {
+                if (getComputedStyle(m).display !== 'none') m.style.display = 'none';
+            });
+        });
+        document.querySelectorAll('.modal').forEach(function (m) {
+            m.addEventListener('click', function (e) {
+                if (e.target === m) m.style.display = 'none';
+            });
+        });
+    </script>
 
 </body>
 </html>
