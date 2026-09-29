@@ -205,6 +205,7 @@ async function syncSmsGroups() {
             raw.length
         );
 
+        
 
         // ----------------------------------------------------
         // Existing recorded transactions
@@ -325,6 +326,14 @@ async function syncSmsGroups() {
             "PayTrack: sender groups:",
             smsGroupsCache.length
         );
+        const totalRows = smsGroupsCache.reduce(
+    (sum, g) => sum + g.rows.length, 0
+);
+
+console.log(
+    "PayTrack: total parsed rows across all groups:",
+    totalRows
+);
 
 
         renderSmsGroups();
