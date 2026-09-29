@@ -23,7 +23,19 @@ function closeSmsModal() {
 // Returns ONE employee, or null if none or ambiguous
 function matchSmsEmployee(details) {
 
+    const key = typeof senderKeyFor === "function"
+        ? senderKeyFor(details, "")
+        : null;
+
+    if (key) {
+        const linked = employees.find(e =>
+            Array.isArray(e.smsLinks) && e.smsLinks.includes(key)
+        );
+        if (linked) return linked;
+    }
+
     const text = (details || "").toUpperCase();
+    // ... rest of the function stays the same
     const digits = text.replace(/\D/g, "");
 
     // 1. Full phone number
