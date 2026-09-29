@@ -561,9 +561,25 @@ td {
         align-items: flex-start;
     }
 
-    .action-buttons { width: 100%; }
+    .action-buttons {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        width: 100%;
+    }
 
-    .action-buttons button { flex: 1 1 45%; }
+    .action-buttons button {
+        min-height: 52px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        line-height: 1.25;
+    }
+
+    .today-cards { grid-template-columns: 1fr 1fr; }
+    .today-card.net { grid-column: 1 / -1; }
+    .today-card strong { font-size: 19px; }
 
     .employee {
         flex-direction: column;
@@ -648,4 +664,249 @@ td {
 
 @media (prefers-reduced-motion: reduce) {
     button { transition: none; }
+}
+
+
+/* =========================
+   TOPBAR ACTIONS + FOOTER
+========================= */
+
+.topbar-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.lock-btn {
+    background: rgba(255,255,255,0.18);
+    color: white;
+    padding: 10px 13px;
+    font-size: 16px;
+}
+
+.app-footer {
+    text-align: center;
+    padding: 4px 20px 30px;
+}
+
+.link-btn {
+    background: none;
+    color: var(--muted);
+    font-weight: normal;
+    text-decoration: underline;
+    padding: 8px 12px;
+}
+
+
+/* =========================
+   TODAY DASHBOARD
+========================= */
+
+.today-panel { margin-top: 0; }
+
+.today-cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+}
+
+.today-card {
+    background: #f5f7f9;
+    border-left: 5px solid #cbd5e1;
+    border-radius: 12px;
+    padding: 16px;
+}
+
+.today-card.in  { background: #ecfaf3; border-left-color: var(--green); }
+.today-card.out { background: #fdeeed; border-left-color: var(--danger); }
+
+.today-card span {
+    display: block;
+    font-size: 13px;
+    color: var(--muted);
+}
+
+.today-card strong {
+    display: block;
+    font-size: 22px;
+    margin: 6px 0 2px;
+}
+
+.today-card small {
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.today-balance { margin-top: 14px; }
+
+.today-status {
+    font-size: 12px;
+    margin-top: 4px;
+}
+
+.today-list { margin-top: 14px; }
+
+.today-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid #eeeeee;
+}
+
+.today-item:last-child { border-bottom: none; }
+
+.today-item .who {
+    font-weight: bold;
+    font-size: 14px;
+    word-break: break-word;
+}
+
+.today-item .when {
+    display: block;
+    font-size: 12px;
+    font-weight: normal;
+    color: var(--muted);
+    margin-top: 2px;
+}
+
+.today-item .amt {
+    font-weight: bold;
+    white-space: nowrap;
+}
+
+
+/* =========================
+   PIN LOCK
+========================= */
+
+body.is-locked { overflow: hidden; }
+
+.pin-lock {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 3000;
+    background: linear-gradient(160deg, #065f46, #087f5b);
+    color: white;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    overflow-y: auto;
+}
+
+.pin-lock.show { display: flex; }
+
+.pin-box {
+    width: 100%;
+    max-width: 320px;
+    text-align: center;
+}
+
+.pin-logo { font-size: 38px; }
+
+.pin-box h2 {
+    margin: 8px 0 4px;
+    font-size: 22px;
+}
+
+.pin-sub {
+    opacity: 0.85;
+    font-size: 14px;
+    margin-bottom: 18px;
+    min-height: 18px;
+}
+
+.pin-dots {
+    display: flex;
+    justify-content: center;
+    gap: 14px;
+    height: 16px;
+    margin-bottom: 10px;
+}
+
+.pin-dot {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.85);
+}
+
+.pin-dot.filled { background: white; }
+
+.pin-error {
+    min-height: 20px;
+    font-size: 13px;
+    color: #ffd7d2;
+    margin-bottom: 10px;
+}
+
+.pin-pad {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    max-width: 280px;
+    margin: 0 auto;
+}
+
+.pin-key {
+    height: 64px;
+    border-radius: 32px;
+    background: rgba(255,255,255,0.14);
+    color: white;
+    font-size: 24px;
+}
+
+.pin-key.ok {
+    background: white;
+    color: var(--green);
+}
+
+.pin-links {
+    display: flex;
+    justify-content: center;
+    gap: 22px;
+    margin-top: 18px;
+}
+
+.pin-link {
+    background: none;
+    color: white;
+    font-weight: normal;
+    font-size: 14px;
+    text-decoration: underline;
+    opacity: 0.85;
+    padding: 6px;
+}
+
+.pin-box.disabled .pin-key {
+    opacity: 0.4;
+    pointer-events: none;
+}
+
+.pin-box.shake { animation: pinShake 0.4s; }
+
+@keyframes pinShake {
+    0%, 100% { transform: translateX(0); }
+    20%, 60% { transform: translateX(-10px); }
+    40%, 80% { transform: translateX(10px); }
+}
+
+
+/* =========================
+   TOAST
+========================= */
+
+.toast {
+    position: fixed;
+    left: 50%;
+    bottom: 24px;
+    transform: translateX(-50%);
+    background: #17202a;
+    color: white;
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-size: 14px;
+    z-index: 4000;
 }

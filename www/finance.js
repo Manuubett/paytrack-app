@@ -157,28 +157,30 @@ function closeFinanceModal() {
    SYNC
 ========================= */
 
-async function syncFinance() {
+let financeLoading = null;
 
-    const body = document.getElementById("financeBody");
-    if (!body) return;
+/*
+    Reads the SMS inbox and fills financeCache.
+    Shared by the Income vs Expense modal and the Today dashboard.
+    Throws an Error with a readable message on failure.
+*/
+function loadFinanceData() {
 
-    if (
-        !window.Capacitor ||
-        typeof window.Capacitor.isNativePlatform !== "function" ||
-        !window.Capacitor.isNativePlatform()
-    ) {
-        body.innerHTML =
-            "<p class='muted'>This only works inside the Android app.</p>";
-        return;
-    }
+    if (financeLoading) return financeLoading;
 
-    if (typeof window.syncAllMpesaSms !== "function") {
-        body.innerHTML =
-            "<p class='muted'>SMS bridge is not available. Please restart the app.</p>";
-        return;
-    }
+    financeLoading = (async () => {
 
-    try {
+        if (
+            !window.Capacitor ||
+            typeof window.Capacitor.isNativePlatform !== "function" ||
+            !window.Capacitor.isNativePlatform()
+        ) {
+            throw new Error("This only works inside the Android app.");
+        }
+
+        if (typeof window.syncAllMpesaSms !== "function") {
+            throw new Error("SMS bridge is not available. Please restart the app.");
+        }
 
         const raw = await window.syncAllMpesaSms();
 
@@ -237,15 +239,39 @@ async function syncFinance() {
             "expense rows:", expense.length
         );
 
+        return financeCache;
+
+    })();
+
+    financeLoading.then(
+        () => { financeLoading = null; },
+        () => { financeLoading = null; }
+    );
+
+    return financeLoading;
+}
+
+
+async function syncFinance() {
+
+    const body = document.getElementById("financeBody");
+    if (!body) return;
+
+    try {
+
+        await loadFinanceData();
         renderFinance();
 
     } catch (error) {
 
         console.error("PayTrack Finance sync failed:", error);
 
+        const msg = error.message || "Unknown error";
+
         body.innerHTML =
-            "<p class='muted'>Could not read SMS: " +
-            escapeHtml(error.message || "Unknown error") +
+            "<p class='muted'>" +
+            (/^(This only works|SMS bridge)/.test(msg) ? "" : "Could not read SMS: ") +
+            escapeHtml(msg) +
             "</p>";
     }
 }

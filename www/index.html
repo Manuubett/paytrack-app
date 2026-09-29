@@ -7,7 +7,41 @@
     <link rel="stylesheet" href="style.css">
 </head>
 
-<body>
+<body class="is-locked">
+
+    <!-- ========================= -->
+    <!-- PIN LOCK (visible until pin-lock.js unlocks it) -->
+    <!-- ========================= -->
+    <div id="pinLock" class="pin-lock show" role="dialog" aria-modal="true" aria-labelledby="pinTitle">
+        <div id="pinBox" class="pin-box">
+            <div class="pin-logo">🔒</div>
+            <h2 id="pinTitle">Enter PIN</h2>
+            <p id="pinSubtitle" class="pin-sub"></p>
+
+            <div id="pinDots" class="pin-dots" aria-hidden="true"></div>
+            <p id="pinError" class="pin-error" role="alert"></p>
+
+            <div id="pinPad" class="pin-pad">
+                <button type="button" class="pin-key" data-key="1">1</button>
+                <button type="button" class="pin-key" data-key="2">2</button>
+                <button type="button" class="pin-key" data-key="3">3</button>
+                <button type="button" class="pin-key" data-key="4">4</button>
+                <button type="button" class="pin-key" data-key="5">5</button>
+                <button type="button" class="pin-key" data-key="6">6</button>
+                <button type="button" class="pin-key" data-key="7">7</button>
+                <button type="button" class="pin-key" data-key="8">8</button>
+                <button type="button" class="pin-key" data-key="9">9</button>
+                <button type="button" class="pin-key" data-key="back" aria-label="Delete">⌫</button>
+                <button type="button" class="pin-key" data-key="0">0</button>
+                <button type="button" class="pin-key ok" data-key="ok" aria-label="Confirm">✓</button>
+            </div>
+
+            <div class="pin-links">
+                <button type="button" id="pinCancel" class="pin-link" style="display:none;">Cancel</button>
+                <button type="button" id="pinForgot" class="pin-link">Forgot PIN?</button>
+            </div>
+        </div>
+    </div>
 
     <!-- HEADER -->
     <header class="topbar">
@@ -16,13 +50,59 @@
             <p>Payment Reconciliation</p>
         </div>
 
-        <button type="button" class="add-btn" onclick="openEmployeeModal()">
-            + Add Employee
-        </button>
+        <div class="topbar-actions">
+            <button type="button" id="lockBtn" class="lock-btn" aria-label="Lock app" title="Lock app">🔒</button>
+            <button type="button" class="add-btn" onclick="openEmployeeModal()">
+                + Add Employee
+            </button>
+        </div>
     </header>
 
 
     <main class="container">
+
+        <!-- TODAY DASHBOARD -->
+        <section class="section today-panel" id="todayPanel">
+
+            <div class="section-header">
+                <div>
+                    <h2>Today</h2>
+                    <p id="todayDate"></p>
+                </div>
+
+                <button type="button" id="todayRefreshBtn" class="secondary-btn"
+                        onclick="refreshDashboard()">
+                    ↻ Refresh
+                </button>
+            </div>
+
+            <div class="today-cards">
+                <div class="today-card in">
+                    <span>Money In</span>
+                    <strong id="todayIn" class="pos">KSh 0</strong>
+                    <small id="todayInCount">0 transactions</small>
+                </div>
+
+                <div class="today-card out">
+                    <span>Money Out</span>
+                    <strong id="todayOut" class="neg">KSh 0</strong>
+                    <small id="todayOutCount">0 transactions</small>
+                </div>
+
+                <div class="today-card net">
+                    <span>Net Today</span>
+                    <strong id="todayNet">KSh 0</strong>
+                    <small>In minus Out</small>
+                </div>
+            </div>
+
+            <p id="todayBalance" class="muted today-balance"></p>
+            <p id="todayStatus" class="muted today-status"></p>
+
+            <div id="todayList" class="today-list"></div>
+
+        </section>
+
 
         <!-- SUMMARY -->
         <section class="summary">
@@ -110,6 +190,10 @@
         </section>
 
     </main>
+
+    <footer class="app-footer">
+        <button type="button" id="changePinBtn" class="link-btn">Change PIN</button>
+    </footer>
 
 
     <!-- ========================= -->
@@ -308,6 +392,7 @@
     </div>
 
 
+    <script src="pin-lock.js"></script>
     <script src="debug-log.js"></script>
     <script src="app.js"></script>
     <script src="import.js"></script>
@@ -315,6 +400,7 @@
     <script src="sms-parser.js"></script>
     <script src="mpesa-parser-extended.js"></script>
     <script src="finance.js"></script>
+    <script src="dashboard.js"></script>
     <script src="sms-groups.js"></script>
     <script src="android-bridge.js"></script>
 
