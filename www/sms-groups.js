@@ -134,8 +134,6 @@ async function syncSmsGroups() {
         return;
     }
 
-<<<<<<< HEAD
-=======
 
     // --------------------------------------------------------
     // Confirm Android / Capacitor
@@ -178,9 +176,6 @@ async function syncSmsGroups() {
 
         return;
     }
-
-
->>>>>>> 995a3d310049e37b7173607bcea13d2dd26e99e1
     try {
 
         list.innerHTML =

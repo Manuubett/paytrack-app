@@ -83,6 +83,9 @@
                     <button class="secondary-btn" onclick="openSmsGroupsModal()">
     📥 Sync All SMS
 </button>
+<button class="secondary-btn" onclick="openDebugLog()">
+    🐛 Debug Log
+</button>
 
                 </div>
 
@@ -404,8 +407,17 @@
 
     </div>
 </div>
+<div id="debugLogModal" class="modal">
+    <div class="modal-box details-box">
+        <div class="modal-header">
+            <h2>Debug Log</h2>
+            <button onclick="closeDebugLog()" class="close-btn">×</button>
+        </div>
+        <pre id="debugLogContent" style="white-space:pre-wrap; font-size:12px; max-height:60vh; overflow-y:auto; background:#f5f5f5; padding:10px; border-radius:8px;"></pre>
+    </div>
+</div>
 
-
+<script src="debug-log.js"></script>
     <script src="app.js"></script>
     <script src="import.js"></script>
     <script src="sms.js"></script>
