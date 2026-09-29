@@ -8,40 +8,47 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
 
-      - uses: actions/setup-java@v4
+      - name: Setup Java
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 21
+          cache: gradle
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
-      - name: Sync Capacitor
+      - name: Capacitor sync
         run: npx cap sync android
 
-      - name: Show Capacitor versions
+      - name: Verify Android project
         run: |
-          echo "--- package.json versions ---"
-          npm list @capacitor/core @capacitor/android @capacitor/cli
-          echo "--- installed core package.json ---"
-          cat node_modules/@capacitor/core/package.json | grep '"version"'
-          echo "--- installed android package.json ---"
-          cat node_modules/@capacitor/android/package.json | grep '"version"'
+          echo "=== Android plugins ==="
+          find android -type f | grep -E "PayTrack|Plugin|MainActivity" || true
+
+          echo "=== Capacitor ==="
+          npx cap doctor
 
       - name: Build debug APK
         working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug
+          ./gradlew clean
+          ./gradlew assembleDebug --stacktrace
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
         with:
           name: paytrack-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
