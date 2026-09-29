@@ -71,9 +71,20 @@ async function syncSmsGroups() {
         return;
     }
 
+    list.innerHTML =
+        "<p class='muted'>Capacitor keys: " +
+        escapeHtml(Object.keys(window.Capacitor || {}).join(", ")) +
+        "<br>registerPlugin type: " +
+        escapeHtml(typeof (window.Capacitor && window.Capacitor.registerPlugin)) +
+        "<br>PayTrackSms global: " +
+        escapeHtml(typeof window.PayTrackSms) +
+        "</p>";
+
+    return; // TEMPORARY diagnostic - remove this line once we know the cause
+
     try {
 
-        const Sms = Capacitor.registerPlugin("PayTrackSms");
+        const Sms = window.PayTrackSms || Capacitor.registerPlugin("PayTrackSms");
 
         const status = await Sms.checkPermissions();
         if (status.sms !== "granted") {

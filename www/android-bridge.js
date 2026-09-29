@@ -26,6 +26,7 @@
     }
 
     const Sms = Capacitor.registerPlugin("PayTrackSms");
+window.PayTrackSms = Sms;
 
     const REVIEW_KEY = "paytrack_review";
 
