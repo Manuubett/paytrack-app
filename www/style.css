@@ -533,6 +533,47 @@ td {
     padding: 10px 14px;
     margin-bottom: 12px;
 }
+/* =========================
+   PRINT (employee report)
+========================= */
+
+@media print {
+
+    body { background: white; }
+
+    body > *:not(#detailsModal) { display: none !important; }
+
+    #detailsModal {
+        display: block !important;
+        position: static;
+        background: none;
+        padding: 0;
+    }
+
+    #detailsModal .modal-box {
+        max-width: 100%;
+        max-height: none;
+        overflow: visible;
+        padding: 0;
+    }
+
+    .no-print,
+    .close-btn { display: none !important; }
+
+    .print-only { display: block; }
+
+    .report-meta {
+        color: #667085;
+        font-size: 13px;
+        margin-bottom: 15px;
+    }
+}
+
+
+/* =========================
+   SMS SENDER GROUPS
+========================= */
+
 .sms-group-card {
     border: 1px solid #ddd;
     border-radius: 8px;
@@ -560,8 +601,4 @@ td {
 .sms-group-actions select {
     padding: 4px;
 }
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> dcb65a5313a4fc958e7be1b2042a4badea0e8382
