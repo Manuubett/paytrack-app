@@ -26,21 +26,20 @@ jobs:
       - name: Sync Capacitor
         run: npx cap sync android
 
+      - name: Show Capacitor versions
+        run: |
+          echo "--- package.json versions ---"
+          npm list @capacitor/core @capacitor/android @capacitor/cli
+          echo "--- installed core package.json ---"
+          cat node_modules/@capacitor/core/package.json | grep '"version"'
+          echo "--- installed android package.json ---"
+          cat node_modules/@capacitor/android/package.json | grep '"version"'
+
       - name: Build debug APK
         working-directory: android
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug
-
-      - name: Show manifest merger log
-        run: |
-          find android -name "manifest-merger-debug-report.txt" -exec cat {} \;
-
-      - name: Check APK permissions
-        run: |
-          AAPT=$(find $ANDROID_HOME -name "aapt" | head -n 1)
-          echo "Using aapt at: $AAPT"
-          $AAPT dump permissions android/app/build/outputs/apk/debug/app-debug.apk
 
       - uses: actions/upload-artifact@v4
         with:
