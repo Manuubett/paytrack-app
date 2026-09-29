@@ -514,6 +514,25 @@ function renderSmsGroups() {
             .join("");
 }
 
+function filterSmsGroups(query) {
+
+    const q = (query || "").trim().toUpperCase();
+
+    if (!q) {
+        renderSmsGroups();
+        return;
+    }
+
+    const filtered = smsGroupsCache.filter(group =>
+        group.display.toUpperCase().includes(q) ||
+        group.key.toUpperCase().includes(q)
+    );
+
+    const original = smsGroupsCache;
+    smsGroupsCache = filtered;
+    renderSmsGroups();
+    smsGroupsCache = original;
+}
 
 // ============================================================
 // LINK EXISTING EMPLOYEE

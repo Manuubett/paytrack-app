@@ -402,6 +402,13 @@
             All M-PESA messages on this phone, grouped by sender.
             Link a sender to an employee to start tracking their payments.
         </p>
+        <input
+    type="text"
+    id="smsGroupSearch"
+    placeholder="Search by name, number, or amount..."
+    style="margin-bottom:10px;"
+    oninput="filterSmsGroups(this.value)"
+>
 
         <div id="smsGroupsList"></div>
 
