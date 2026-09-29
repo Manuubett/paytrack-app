@@ -64,9 +64,18 @@
 
     // ---------- Matching (only auto-save when it is unambiguous) ----------
 
-    function pickEmployee(details) {
+   function pickEmployee(details) {
 
-        const digits = details.replace(/\D/g, "");
+    const key = senderKeyFor(details, "");
+
+    if (key) {
+        const linked = employees.find(e =>
+            Array.isArray(e.smsLinks) && e.smsLinks.includes(key)
+        );
+        if (linked) return linked;
+    }
+
+    const digits = details.replace(/\D/g, "");
 
         const byPhone =
             employees.filter(employee => {
