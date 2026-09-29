@@ -316,5 +316,5 @@ function importSmsGroup(index) {
     render();
     renderSmsGroups();
 
-        alert(`${added} payment(s) imported for ${employee.name}.`);
+       alert(`${added} payment(s) imported for ${employee.name}.`);
 }
