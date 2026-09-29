@@ -8,13 +8,23 @@ import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import com.getcapacitor.annotation.Permission;
 import org.json.JSONArray;
+import org.json.JSONObject;
+import android.database.Cursor;
+import android.net.Uri;
+import android.provider.Telephony;
 import java.util.HashSet;
 import java.util.Set;
 
 @CapacitorPlugin(
     name = "PayTrackSms",
     permissions = {
-        @Permission(strings = { android.Manifest.permission.RECEIVE_SMS }, alias = "sms")
+        @Permission(
+            strings = {
+                android.Manifest.permission.RECEIVE_SMS,
+                android.Manifest.permission.READ_SMS
+            },
+            alias = "sms"
+        )
     }
 )
 public class PayTrackSmsPlugin extends Plugin {
@@ -31,6 +41,8 @@ public class PayTrackSmsPlugin extends Plugin {
             instance.notifyListeners("smsReceived", new JSObject());
         }
     }
+
+    // ---------- Live queue (existing background flow) ----------
 
     @PluginMethod
     public void getPendingSms(PluginCall call) {
@@ -52,6 +64,64 @@ public class PayTrackSmsPlugin extends Plugin {
             call.resolve();
         } catch (Exception e) {
             call.reject("Could not remove messages");
+        }
+    }
+
+    // ---------- Full inbox read (new, Truecaller-style) ----------
+
+    @PluginMethod
+    public void getAllMpesaSms(PluginCall call) {
+        try {
+            JSONArray results = new JSONArray();
+
+            Uri uri = Telephony.Sms.Inbox.CONTENT_URI;
+            String[] projection = {
+                Telephony.Sms._ID,
+                Telephony.Sms.ADDRESS,
+                Telephony.Sms.BODY,
+                Telephony.Sms.DATE
+            };
+
+            Cursor cursor = getContext().getContentResolver().query(
+                uri, projection, null, null, Telephony.Sms.DATE + " DESC"
+            );
+
+            if (cursor != null) {
+
+                int idIdx = cursor.getColumnIndex(Telephony.Sms._ID);
+                int addrIdx = cursor.getColumnIndex(Telephony.Sms.ADDRESS);
+                int bodyIdx = cursor.getColumnIndex(Telephony.Sms.BODY);
+                int dateIdx = cursor.getColumnIndex(Telephony.Sms.DATE);
+
+                while (cursor.moveToNext()) {
+
+                    String body = cursor.getString(bodyIdx);
+                    if (body == null) continue;
+
+                    String address = cursor.getString(addrIdx);
+                    boolean isMpesa =
+                        (address != null && address.toUpperCase().contains("MPESA")) ||
+                        body.toUpperCase().contains("M-PESA");
+
+                    if (!isMpesa) continue;
+
+                    JSONObject o = new JSONObject();
+                    o.put("id", cursor.getString(idIdx));
+                    o.put("address", address == null ? "" : address);
+                    o.put("body", body);
+                    o.put("date", cursor.getLong(dateIdx));
+                    results.put(o);
+                }
+
+                cursor.close();
+            }
+
+            JSObject result = new JSObject();
+            result.put("messages", results);
+            call.resolve(result);
+
+        } catch (Exception e) {
+            call.reject("Could not read SMS inbox: " + e.getMessage());
         }
     }
 }
