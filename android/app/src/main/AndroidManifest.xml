@@ -3,10 +3,7 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
-<<<<<<< HEAD
-=======
     <uses-permission android:name="android.permission.READ_SMS" />
->>>>>>> dcb65a5313a4fc958e7be1b2042a4badea0e8382
 
     <application
         android:allowBackup="true"
@@ -52,8 +49,4 @@
 
     </application>
 
-<<<<<<< HEAD
 </manifest>
-=======
-</manifest>
->>>>>>> dcb65a5313a4fc958e7be1b2042a4badea0e8382
