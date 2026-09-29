@@ -79,26 +79,47 @@
     console.log(
         "PayTrack: Android Capacitor detected."
     );
+    console.log(
+        "PayTrack: Capacitor.getPlatform:",
+        typeof window.Capacitor.getPlatform === "function"
+            ? window.Capacitor.getPlatform()
+            : "unavailable"
+    );
 
+    console.log(
+        "PayTrack: window.Capacitor full dump:",
+        JSON.stringify(Object.keys(window.Capacitor))
+    );
 
     // =========================================================
     // REGISTER NATIVE PLUGIN
     // =========================================================
 
-    if (
-        typeof window.Capacitor.registerPlugin !== "function"
+    let Sms = null;
+
+    if (typeof window.Capacitor.registerPlugin === "function") {
+
+        Sms = window.Capacitor.registerPlugin("PayTrackSms");
+
+    } else if (
+        window.Capacitor.Plugins &&
+        window.Capacitor.Plugins.PayTrackSms
     ) {
 
+        console.log(
+            "PayTrack: using Capacitor.Plugins.PayTrackSms fallback."
+        );
+
+        Sms = window.Capacitor.Plugins.PayTrackSms;
+
+    } else {
+
         console.error(
-            "PayTrack: Capacitor.registerPlugin is unavailable."
+            "PayTrack: PayTrackSms plugin not found on Capacitor.Plugins either."
         );
 
         return;
     }
-
-
-    const Sms =
-        window.Capacitor.registerPlugin("PayTrackSms");
 
 
     if (!Sms) {
