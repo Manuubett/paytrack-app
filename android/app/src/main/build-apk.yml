@@ -26,19 +26,11 @@ jobs:
       - name: Sync Capacitor
         run: npx cap sync android
 
-      - name: Show Capacitor versions
-        run: |
-          echo "--- package.json versions ---"
-          npm list @capacitor/core @capacitor/android @capacitor/cli
-          echo "--- installed core package.json ---"
-          cat node_modules/@capacitor/core/package.json | grep '"version"'
-          echo "--- installed android package.json ---"
-          cat node_modules/@capacitor/android/package.json | grep '"version"'
-
       - name: Build debug APK
         working-directory: android
         run: |
           chmod +x gradlew
+          ./gradlew clean
           ./gradlew assembleDebug
 
       - uses: actions/upload-artifact@v4
