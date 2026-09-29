@@ -1,16 +1,138 @@
 /*
     PAYTRACK — INCOME VS EXPENSE DASHBOARD
 
-    Reads the full SMS inbox (via window.syncAllMpesaSms, already
-    used by sms-groups.js) and classifies every message as:
-      - income   (parseMpesaSms     -> "received")
-      - expense  (parseMpesaOutgoing -> "sent"/"paid"/"withdrawn")
+    Reads the full SMS inbox (via window.syncAllMpesaSms) and classifies
+    every message as:
+      - income   (parseMpesaSms from sms-parser.js -> "received")
+      - expense  (parseOutgoingSms below -> sent / paid / withdrawn / airtime)
 
-    Renders a simple summary + breakdown, no chart library needed.
+    Each row now carries date, time and M-PESA balance, so the dashboard
+    can show the latest balance.
+
+    The outgoing parser lives in this file so it no longer depends on
+    parseMpesaOutgoing existing in sms-parser.js.
 */
 
 let financeCache = { income: [], expense: [] };
 
+
+/* =========================
+   OUTGOING M-PESA PARSER
+========================= */
+
+function parseKshAmount(str) {
+    return Number(String(str || "").replace(/,/g, "")) || 0;
+}
+
+function parseSmsDate(text, fallback) {
+
+    const m = text.match(/\bon\s+(\d{1,2})\/(\d{1,2})\/(\d{2,4})/i);
+
+    if (m) {
+        let day = m[1].padStart(2, "0");
+        let month = m[2].padStart(2, "0");
+        let year = m[3].length === 2 ? "20" + m[3] : m[3];
+        return `${year}-${month}-${day}`;
+    }
+
+    if (fallback) {
+        const d = new Date(fallback);
+        if (!isNaN(d)) return d.toISOString().slice(0, 10);
+    }
+
+    return "";
+}
+
+function parseSmsTime(text) {
+
+    const m = text.match(/\bat\s+(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+    if (!m) return "";
+
+    let hours = Number(m[1]);
+    const meridian = (m[3] || "").toUpperCase();
+
+    if (meridian === "PM" && hours < 12) hours += 12;
+    if (meridian === "AM" && hours === 12) hours = 0;
+
+    return String(hours).padStart(2, "0") + ":" + m[2];
+}
+
+function parseSmsBalance(text) {
+
+    const m = text.match(
+        /balance\s+is\s+(?:Ksh|KES)\.?\s*([\d,]+(?:\.\d{1,2})?)/i
+    );
+
+    return m ? parseKshAmount(m[1]) : null;
+}
+
+function cleanRecipient(name) {
+    return String(name || "")
+        .replace(/\s+(?:on|at)\s+\d.*$/i, "")
+        .replace(/\s*\+?\d[\d\s-]{7,}$/, "")     // trailing phone number
+        .replace(/[.\s]+$/, "")
+        .trim() || "Unknown";
+}
+
+/* Returns an array with 0 or 1 expense rows. */
+function parseOutgoingSms(body, fallbackDate) {
+
+    const text = String(body || "").replace(/\s+/g, " ").trim();
+    if (!text) return [];
+
+    // never treat incoming money as an expense
+    if (/you have received/i.test(text) && !/\bsent to\b|\bpaid to\b/i.test(text)) {
+        return [];
+    }
+
+    const AMT = "Ksh\\.?\\s?([\\d,]+(?:\\.\\d{1,2})?)";
+    let amount = 0;
+    let recipient = "";
+    let type = "";
+    let m;
+
+    if ((m = text.match(new RegExp(AMT + "\\s+sent to\\s+(.+?)(?=\\s+for account|\\s+on\\s+\\d|\\.\\s|$)", "i")))) {
+        amount = parseKshAmount(m[1]);
+        recipient = cleanRecipient(m[2]);
+        type = "sent";
+
+    } else if ((m = text.match(new RegExp(AMT + "\\s+paid to\\s+(.+?)(?=\\.?\\s+on\\s+\\d|$)", "i")))) {
+        amount = parseKshAmount(m[1]);
+        recipient = cleanRecipient(m[2]);
+        type = "paid";
+
+    } else if ((m = text.match(new RegExp("Withdraw\\s+" + AMT + "\\s+from\\s+(.+?)(?=\\s+New M-PESA|$)", "i")))) {
+        amount = parseKshAmount(m[1]);
+        recipient = "Withdrawal: " + cleanRecipient(m[2].replace(/^\d+\s*-\s*/, ""));
+        type = "withdrawn";
+
+    } else if ((m = text.match(new RegExp("bought\\s+" + AMT + "\\s+of airtime", "i")))) {
+        amount = parseKshAmount(m[1]);
+        recipient = "Airtime";
+        type = "airtime";
+    }
+
+    if (!amount) return [];
+
+    const codeMatch = text.match(/\b([A-Z0-9]{10})\b\s+confirmed/i);
+    const feeMatch = text.match(/Transaction cost,?\s*Ksh\.?\s?([\d,]+(?:\.\d{1,2})?)/i);
+
+    return [{
+        id: codeMatch ? codeMatch[1].toUpperCase() : "",
+        type: type,
+        amount: amount,
+        fee: feeMatch ? parseKshAmount(feeMatch[1]) : 0,
+        recipient: recipient,
+        date: parseSmsDate(text, fallbackDate),
+        time: parseSmsTime(text),
+        balance: parseSmsBalance(text)
+    }];
+}
+
+
+/* =========================
+   MODAL
+========================= */
 
 function openFinanceModal() {
 
@@ -30,6 +152,10 @@ function closeFinanceModal() {
     if (modal) modal.style.display = "none";
 }
 
+
+/* =========================
+   SYNC
+========================= */
 
 async function syncFinance() {
 
@@ -62,26 +188,46 @@ async function syncFinance() {
 
         const income = [];
         const expense = [];
+        const seenIn = new Set();
+        const seenOut = new Set();
 
         raw.forEach(message => {
 
             if (!message || !message.body) return;
 
+            // ---- income ----
             try {
+                if (typeof parseMpesaSms === "function") {
+                    parseMpesaSms(message.body).forEach(row => {
 
-                parseMpesaSms(message.body).forEach(row => {
-                    income.push(row);
-                });
+                        // de-duplicate by M-PESA receipt
+                        if (row.receipt) {
+                            if (seenIn.has(row.receipt)) return;
+                            seenIn.add(row.receipt);
+                        }
 
-            } catch (e) {}
+                        income.push(row);
+                    });
+                }
+            } catch (e) {
+                console.warn("PayTrack Finance: income parse failed", e);
+            }
 
+            // ---- expense ----
             try {
+                parseOutgoingSms(message.body, message.date).forEach(row => {
 
-                parseMpesaOutgoing(message.body).forEach(row => {
+                    // de-duplicate by M-PESA transaction code
+                    if (row.id) {
+                        if (seenOut.has(row.id)) return;
+                        seenOut.add(row.id);
+                    }
+
                     expense.push(row);
                 });
-
-            } catch (e) {}
+            } catch (e) {
+                console.warn("PayTrack Finance: expense parse failed", e);
+            }
         });
 
         financeCache = { income, expense };
@@ -109,6 +255,14 @@ function monthKey(iso) {
     return (iso || "").slice(0, 7); // "YYYY-MM"
 }
 
+function outAmount(row) {
+    return (Number(row.amount) || 0) + (Number(row.fee) || 0);
+}
+
+
+/* =========================
+   RENDER
+========================= */
 
 function renderFinance() {
 
@@ -124,8 +278,21 @@ function renderFinance() {
     }
 
     const totalIn = income.reduce((s, r) => s + (Number(r.amount) || 0), 0);
-    const totalOut = expense.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+    const totalOut = expense.reduce((s, r) => s + outAmount(r), 0);
+    const totalFees = expense.reduce((s, r) => s + (Number(r.fee) || 0), 0);
     const net = totalIn - totalOut;
+
+    // ---------- Latest M-PESA balance ----------
+
+    let latest = null;
+
+    income.concat(expense).forEach(r => {
+        if (r.balance === null || r.balance === undefined || !r.date) return;
+        const key = r.date + " " + (r.time || "00:00");
+        if (!latest || key > latest.key) {
+            latest = { key: key, balance: r.balance, date: r.date, time: r.time };
+        }
+    });
 
     // ---------- Group expenses by recipient ----------
 
@@ -134,7 +301,7 @@ function renderFinance() {
     expense.forEach(row => {
         const key = (row.recipient || "Unknown").trim();
         if (!byRecipient[key]) byRecipient[key] = { name: key, total: 0, count: 0 };
-        byRecipient[key].total += Number(row.amount) || 0;
+        byRecipient[key].total += outAmount(row);
         byRecipient[key].count++;
     });
 
@@ -148,14 +315,16 @@ function renderFinance() {
 
     income.forEach(r => {
         const k = monthKey(r.date);
+        if (!k) return;
         if (!months[k]) months[k] = { in: 0, out: 0 };
         months[k].in += Number(r.amount) || 0;
     });
 
     expense.forEach(r => {
         const k = monthKey(r.date);
+        if (!k) return;
         if (!months[k]) months[k] = { in: 0, out: 0 };
-        months[k].out += Number(r.amount) || 0;
+        months[k].out += outAmount(r);
     });
 
     const monthKeys = Object.keys(months).sort().slice(-6);
@@ -167,11 +336,11 @@ function renderFinance() {
     let html = `
         <div class="detail-summary">
             <div class="detail-card">
-                <span>Total In</span>
+                <span>Total In (${income.length})</span>
                 <strong class="pos">${formatMoney(totalIn)}</strong>
             </div>
             <div class="detail-card">
-                <span>Total Out</span>
+                <span>Total Out (${expense.length})</span>
                 <strong class="neg">${formatMoney(totalOut)}</strong>
             </div>
             <div class="detail-card">
@@ -179,7 +348,20 @@ function renderFinance() {
                 <strong class="${net >= 0 ? "pos" : "neg"}">${formatMoney(net)}</strong>
             </div>
         </div>
+        <p class="muted" style="margin:-8px 0 12px;">
+            Total Out includes ${formatMoney(totalFees)} in transaction fees.
+        </p>
     `;
+
+    if (latest) {
+        html += `
+            <p class="muted" style="margin-bottom:12px;">
+                Latest M-PESA balance:
+                <strong>${formatMoney(latest.balance)}</strong>
+                (${escapeHtml(latest.date)}${latest.time ? " " + escapeHtml(latest.time) : ""})
+            </p>
+        `;
+    }
 
     // ---------- Simple bar chart (inline SVG, no library) ----------
 
