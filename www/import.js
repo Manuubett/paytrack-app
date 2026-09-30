@@ -6,6 +6,14 @@
     column) and records it as a payment. Duplicates are skipped by
     transaction ID.
 
+    Also accepts:
+      - semicolon or tab separated statements
+      - a .txt file of pasted M-PESA SMS messages (used automatically
+        when the file has no "Paid in" column; needs
+        mpesa-parser-extended.js / parseMpesaSms)
+
+    PDF files are rejected with a helpful message (PDFs can't be read here).
+
     Load AFTER app.js:
     <script src="app.js"></script>
     <script src="import.js"></script>
@@ -16,7 +24,9 @@
 // CSV LINE SPLITTER (handles "quoted, values")
 // ==========================================
 
-function splitCsvLine(line) {
+function splitCsvLine(line, delimiter) {
+
+    delimiter = delimiter || ",";
 
     const cells = [];
     let current = "";
@@ -35,7 +45,7 @@ function splitCsvLine(line) {
                 inQuotes = !inQuotes;
             }
 
-        } else if (char === "," && !inQuotes) {
+        } else if (char === delimiter && !inQuotes) {
 
             cells.push(current.trim());
             current = "";
@@ -49,6 +59,32 @@ function splitCsvLine(line) {
     cells.push(current.trim());
 
     return cells;
+}
+
+
+// Picks , ; or tab by looking at the header row
+function detectDelimiter(text) {
+
+    const headerLine =
+        text.split(/\r?\n/).find(line =>
+            line.toLowerCase().includes("paid in")
+        );
+
+    if (!headerLine) return ",";
+
+    const counts = {
+        ",": (headerLine.match(/,/g) || []).length,
+        ";": (headerLine.match(/;/g) || []).length,
+        "\t": (headerLine.match(/\t/g) || []).length
+    };
+
+    let best = ",";
+
+    Object.keys(counts).forEach(key => {
+        if (counts[key] > counts[best]) best = key;
+    });
+
+    return best;
 }
 
 
@@ -134,10 +170,12 @@ function findEmployeeForDetails(details) {
 
 
 // ==========================================
-// PARSE STATEMENT TEXT
+// PARSE STATEMENT TEXT (CSV with a "Paid in" column)
 // ==========================================
 
 function parseStatement(text) {
+
+    const delimiter = detectDelimiter(text);
 
     const lines =
         text.split(/\r?\n/).filter(line => line.trim() !== "");
@@ -153,7 +191,7 @@ function parseStatement(text) {
 
     for (const line of lines) {
 
-        const cells = splitCsvLine(line);
+        const cells = splitCsvLine(line, delimiter);
         const lower = cells.map(cell => cell.toLowerCase());
 
         // Detect header row
@@ -197,19 +235,53 @@ function parseStatement(text) {
 
 
 // ==========================================
+// PARSE PASTED / EXPORTED M-PESA SMS TEXT
+// ==========================================
+
+function parseSmsFileText(text) {
+
+    if (typeof parseMpesaSms !== "function") return [];
+
+    try {
+
+        return parseMpesaSms(text).map(row => ({
+            receipt: row.receipt,
+            date: row.date,
+            details: row.details || "",
+            amount: row.amount
+        }));
+
+    } catch (error) {
+
+        console.warn("PayTrack import: SMS parse failed", error);
+        return [];
+    }
+}
+
+
+// ==========================================
 // IMPORT
 // ==========================================
 
 function importStatementText(text) {
 
-    const rows = parseStatement(text);
+    let rows = parseStatement(text);
+    let source = "statement";
+
+    // No "Paid in" column? Try reading it as M-PESA SMS messages.
+    if (rows.length === 0) {
+        rows = parseSmsFileText(text);
+        source = "sms";
+    }
 
     if (rows.length === 0) {
 
         alert(
             "No incoming payments found.\n\n" +
-            "Make sure the file is a CSV statement with a " +
-            "'Paid In' column."
+            "The file should be either:\n" +
+            "• a CSV statement with a 'Paid in' column, or\n" +
+            "• a text file of M-PESA messages (\"... Confirmed. " +
+            "You have received Ksh...\")."
         );
 
         return;
@@ -264,7 +336,11 @@ function importStatementText(text) {
     render();
 
     let message =
-        `Import complete\n\n` +
+        `Import complete\n` +
+        (source === "sms"
+            ? "(read as M-PESA SMS messages)\n"
+            : "") +
+        `\n` +
         `Imported: ${imported}\n` +
         `Already recorded (skipped): ${duplicates}\n` +
         `No matching employee: ${unmatched.length}`;
@@ -305,6 +381,26 @@ document.getElementById(
         const file = event.target.files[0];
 
         if (!file) return;
+
+        // PDFs can't be read as text
+        const isPdf =
+            file.type === "application/pdf" ||
+            /\.pdf$/i.test(file.name);
+
+        if (isPdf) {
+
+            alert(
+                "PDF statements can't be imported.\n\n" +
+                "Try one of these instead:\n" +
+                "• Export the statement as CSV (from the M-PESA app or " +
+                "a converter) and import that.\n" +
+                "• Use 'Sync All SMS' to read the messages already on " +
+                "this phone."
+            );
+
+            this.value = "";
+            return;
+        }
 
         if (employees.length === 0) {
 

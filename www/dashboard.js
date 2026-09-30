@@ -108,6 +108,9 @@ function renderDashboard(data) {
 
     items.sort((a, b) => (b.time || "00:00").localeCompare(a.time || "00:00"));
 
+    const countEl = document.getElementById("todayListCount");
+    if (countEl) countEl.textContent = items.length ? "(" + items.length + ")" : "";
+
     const list = document.getElementById("todayList");
 
     if (items.length === 0) {

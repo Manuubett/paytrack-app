@@ -99,13 +99,26 @@
             <p id="todayBalance" class="muted today-balance"></p>
             <p id="todayStatus" class="muted today-status"></p>
 
+            <div class="list-head">
+                <h3>Transactions <span id="todayListCount" class="muted"></span></h3>
+                <button type="button" class="toggle-btn"
+                        data-toggle-target="todayList"
+                        data-hide-label="Hide" data-show-label="Show">Hide</button>
+            </div>
+
             <div id="todayList" class="today-list"></div>
 
         </section>
 
 
         <!-- SUMMARY -->
-        <section class="summary">
+        <div class="toggle-row" style="margin-top:20px;">
+            <button type="button" class="toggle-btn"
+                    data-toggle-target="summaryCards"
+                    data-hide-label="Hide overview" data-show-label="Show overview">Hide overview</button>
+        </div>
+
+        <section class="summary" id="summaryCards">
             <div class="summary-card">
                 <span>Employees</span>
                 <strong id="employeeCount">0</strong>
@@ -135,9 +148,12 @@
                 <div>
                     <h2>Employees</h2>
                     <p>Track payments received from each employee.</p>
+                    <button type="button" class="toggle-btn"
+                            data-toggle-target="actionButtons"
+                            data-hide-label="Hide actions" data-show-label="Show actions">Hide actions</button>
                 </div>
 
-                <div class="action-buttons">
+                <div class="action-buttons" id="actionButtons">
                     <button type="button" class="secondary-btn"
                             onclick="document.getElementById('statementFile').click()">
                         📄 Import Statement
@@ -401,6 +417,7 @@
     <script src="mpesa-parser-extended.js"></script>
     <script src="finance.js"></script>
     <script src="dashboard.js"></script>
+    <script src="toggles.js"></script>
     <script src="sms-groups.js"></script>
     <script src="android-bridge.js"></script>
 

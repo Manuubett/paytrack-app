@@ -577,9 +577,6 @@ td {
         line-height: 1.25;
     }
 
-    .today-cards { grid-template-columns: 1fr 1fr; }
-    .today-card.net { grid-column: 1 / -1; }
-    .today-card strong { font-size: 19px; }
 
     .employee {
         flex-direction: column;
@@ -909,4 +906,56 @@ body.is-locked { overflow: hidden; }
     border-radius: 8px;
     font-size: 14px;
     z-index: 4000;
+}
+
+
+/* =========================
+   HIDE / SHOW TOGGLES
+========================= */
+
+.is-hidden { display: none !important; }
+
+.toggle-btn {
+    background: none;
+    color: var(--green);
+    font-size: 13px;
+    font-weight: bold;
+    text-decoration: underline;
+    padding: 6px 0;
+}
+
+.toggle-row {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 6px;
+}
+
+.list-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-top: 18px;
+    padding-top: 12px;
+    border-top: 1px solid #eeeeee;
+}
+
+.list-head h3 { font-size: 15px; }
+
+.list-head .toggle-btn { padding: 4px 0; }
+
+
+/* =========================
+   MOBILE OVERRIDES FOR TODAY PANEL
+   (must come AFTER the base .today-* rules above,
+    otherwise they lose and the cards stay 3-across)
+========================= */
+
+@media (max-width: 700px) {
+
+    .today-cards { grid-template-columns: 1fr 1fr; }
+
+    .today-card.net { grid-column: 1 / -1; }
+
+    .today-card strong { font-size: 19px; }
 }
