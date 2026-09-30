@@ -66,7 +66,7 @@
 
             <div class="section-header">
                 <div>
-                    <h2>Today</h2>
+                    <h2>Business</h2>
                     <p id="todayDate"></p>
                 </div>
 
@@ -78,24 +78,25 @@
 
             <div class="today-cards">
                 <div class="today-card in">
-                    <span>Money In</span>
+                    <span>Money In (today)</span>
                     <strong id="todayIn" class="pos">KSh 0</strong>
                     <small id="todayInCount">0 transactions</small>
                 </div>
 
                 <div class="today-card out">
-                    <span>Money Out</span>
+                    <span>Money Out (today)</span>
                     <strong id="todayOut" class="neg">KSh 0</strong>
                     <small id="todayOutCount">0 transactions</small>
                 </div>
 
                 <div class="today-card net">
-                    <span>Net Today</span>
+                    <span id="todayNetLabel">Profit Today</span>
                     <strong id="todayNet">KSh 0</strong>
-                    <small>In minus Out</small>
+                    <small>Money in minus money out</small>
                 </div>
             </div>
 
+            <p id="todayExcluded" class="muted today-status"></p>
             <p id="todayBalance" class="muted today-balance"></p>
             <p id="todayStatus" class="muted today-status"></p>
 
@@ -105,6 +106,11 @@
                         data-toggle-target="todayList"
                         data-hide-label="Hide" data-show-label="Show">Hide</button>
             </div>
+
+            <p class="muted today-status">
+                Tap <strong>Personal</strong> on any transaction that is not part of the
+                business, so it is left out of the profit.
+            </p>
 
             <div id="todayList" class="today-list"></div>
 

@@ -959,3 +959,29 @@ body.is-locked { overflow: hidden; }
 
     .today-card strong { font-size: 19px; }
 }
+
+
+/* =========================
+   BUSINESS: personal toggle on each transaction
+========================= */
+
+.today-item .row-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.mark-btn {
+    background: #f2f4f7;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: normal;
+    padding: 4px 9px;
+}
+
+.today-item.is-personal .who,
+.today-item.is-personal .amt { opacity: 0.5; }
+
+.today-item.is-personal .amt { text-decoration: line-through; }

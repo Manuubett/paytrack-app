@@ -15,6 +15,35 @@ let dashboardTimer = null;
 
 const DASHBOARD_MAX_ROWS = 15;
 
+let dashboardData = null;
+const PERSONAL_KEY = "paytrack_personal_rows";
+
+
+/* ---------- transactions marked "personal" (not business) ---------- */
+
+function loadPersonal() {
+    try {
+        return new Set(JSON.parse(localStorage.getItem(PERSONAL_KEY)) || []);
+    } catch (e) {
+        return new Set();
+    }
+}
+
+function savePersonal(set) {
+    try {
+        // keep the list from growing forever
+        const arr = Array.from(set).slice(-2000);
+        localStorage.setItem(PERSONAL_KEY, JSON.stringify(arr));
+    } catch (e) {}
+}
+
+function dashboardRowKey(kind, r) {
+    return kind + ":" + (
+        r.receipt || r.id ||
+        [r.date, r.time, r.amount, r.details || r.recipient || ""].join("|")
+    );
+}
+
 
 function localISO(d) {
     d = d || new Date();
@@ -50,8 +79,23 @@ function renderDashboard(data) {
 
     const today = localISO();
 
-    const inRows = data.income.filter(r => r.date === today);
-    const outRows = data.expense.filter(r => r.date === today);
+    dashboardData = data;
+
+    const personal = loadPersonal();
+
+    const inAll = data.income
+        .filter(r => r.date === today)
+        .map(r => ({ row: r, key: dashboardRowKey("in", r) }));
+
+    const outAll = data.expense
+        .filter(r => r.date === today)
+        .map(r => ({ row: r, key: dashboardRowKey("out", r) }));
+
+    const inRows = inAll.filter(x => !personal.has(x.key)).map(x => x.row);
+    const outRows = outAll.filter(x => !personal.has(x.key)).map(x => x.row);
+
+    const excludedCount =
+        (inAll.length - inRows.length) + (outAll.length - outRows.length);
 
     const totalIn = inRows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
     const totalOut = outRows.reduce((s, r) => s + dashboardOut(r), 0);
@@ -63,6 +107,16 @@ function renderDashboard(data) {
     const netEl = document.getElementById("todayNet");
     netEl.textContent = formatMoney(net);
     netEl.className = net >= 0 ? "pos" : "neg";
+
+    const netLabel = document.getElementById("todayNetLabel");
+    if (netLabel) netLabel.textContent = net >= 0 ? "Profit Today" : "Loss Today";
+
+    const exEl = document.getElementById("todayExcluded");
+    if (exEl) {
+        exEl.textContent = excludedCount
+            ? plural(excludedCount, "transaction") + " marked personal (not counted)"
+            : "";
+    }
 
     document.getElementById("todayInCount").textContent =
         plural(inRows.length, "transaction");
@@ -92,18 +146,22 @@ function renderDashboard(data) {
 
     const items = [];
 
-    inRows.forEach(r => items.push({
+    inAll.forEach(x => items.push({
         kind: "in",
-        time: r.time || "",
-        label: r.details || "Received",
-        amount: Number(r.amount) || 0
+        key: x.key,
+        personal: personal.has(x.key),
+        time: x.row.time || "",
+        label: x.row.details || "Received",
+        amount: Number(x.row.amount) || 0
     }));
 
-    outRows.forEach(r => items.push({
+    outAll.forEach(x => items.push({
         kind: "out",
-        time: r.time || "",
-        label: r.recipient || "Sent",
-        amount: dashboardOut(r)
+        key: x.key,
+        personal: personal.has(x.key),
+        time: x.row.time || "",
+        label: x.row.recipient || "Sent",
+        amount: dashboardOut(x.row)
     }));
 
     items.sort((a, b) => (b.time || "00:00").localeCompare(a.time || "00:00"));
@@ -122,13 +180,18 @@ function renderDashboard(data) {
 
     list.innerHTML =
         shown.map(it => `
-            <div class="today-item">
+            <div class="today-item${it.personal ? " is-personal" : ""}">
                 <div class="who">
                     ${escapeHtml(it.label)}
-                    <span class="when">${escapeHtml(it.time || "")}</span>
+                    <span class="when">${escapeHtml(it.time || "")}${it.personal ? " · personal" : ""}</span>
                 </div>
-                <div class="amt ${it.kind === "in" ? "pos" : "neg"}">
-                    ${it.kind === "in" ? "+" : "−"} ${escapeHtml(formatMoney(it.amount))}
+                <div class="row-right">
+                    <div class="amt ${it.kind === "in" ? "pos" : "neg"}">
+                        ${it.kind === "in" ? "+" : "−"} ${escapeHtml(formatMoney(it.amount))}
+                    </div>
+                    <button type="button" class="mark-btn" data-mark="${escapeHtml(it.key)}">
+                        ${it.personal ? "Count it" : "Personal"}
+                    </button>
                 </div>
             </div>
         `).join("") +
@@ -170,7 +233,10 @@ async function refreshDashboard() {
         setDashboardStatus(
             "Updated " + new Date().toLocaleTimeString("en-KE", {
                 hour: "2-digit", minute: "2-digit"
-            })
+            }) +
+            (data.kept > 0
+                ? " · includes " + data.kept + " saved from deleted messages"
+                : "")
         );
 
     } catch (error) {
@@ -228,3 +294,25 @@ if (!window.PayTrackLock) {
     refreshDashboard();
     startDashboardTimer();
 }
+
+
+// Tap "Personal" / "Count it" on a transaction
+(function () {
+    const list = document.getElementById("todayList");
+    if (!list) return;
+
+    list.addEventListener("click", function (e) {
+
+        const btn = e.target.closest("[data-mark]");
+        if (!btn || !dashboardData) return;
+
+        const key = btn.getAttribute("data-mark");
+        const set = loadPersonal();
+
+        if (set.has(key)) set.delete(key);
+        else set.add(key);
+
+        savePersonal(set);
+        renderDashboard(dashboardData);
+    });
+})();

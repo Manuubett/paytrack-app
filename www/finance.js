@@ -159,6 +159,87 @@ function closeFinanceModal() {
 
 let financeLoading = null;
 
+
+/* =========================
+   SAVED HISTORY (LEDGER)
+   Every transaction read from the inbox is also saved on this device,
+   so deleting the SMS later does not remove it from PayTrack.
+========================= */
+
+const LEDGER_KEY = "paytrack_ledger_v1";
+const LEDGER_MAX_ROWS = 20000;
+
+function ledgerKey(kind, r) {
+    return (kind === "in" ? r.receipt : r.id) ||
+        [r.date, r.time, r.amount, r.details || r.recipient || ""].join("|");
+}
+
+function loadLedger() {
+    try {
+        const saved = JSON.parse(localStorage.getItem(LEDGER_KEY));
+        if (saved && Array.isArray(saved.income) && Array.isArray(saved.expense)) {
+            return saved;
+        }
+    } catch (e) {}
+    return { income: [], expense: [] };
+}
+
+function saveLedger(ledger) {
+
+    const trim = rows =>
+        rows.length > LEDGER_MAX_ROWS
+            ? rows.slice().sort((a, b) => (a.date || "").localeCompare(b.date || ""))
+                  .slice(-LEDGER_MAX_ROWS)
+            : rows;
+
+    try {
+        localStorage.setItem(LEDGER_KEY, JSON.stringify({
+            income: trim(ledger.income),
+            expense: trim(ledger.expense)
+        }));
+    } catch (e) {
+        console.warn("PayTrack: could not save history", e);
+    }
+}
+
+/*
+    Merges rows read from the inbox into the saved history.
+    Returns everything, plus how many rows are no longer in the inbox.
+*/
+function mergeLedger(income, expense) {
+
+    const ledger = loadLedger();
+    let kept = 0;
+
+    const merge = (kind, saved, fresh) => {
+
+        const map = new Map();
+
+        saved.forEach(r => map.set(ledgerKey(kind, r), r));
+
+        const freshKeys = new Set();
+
+        fresh.forEach(r => {
+            const k = ledgerKey(kind, r);
+            freshKeys.add(k);
+            map.set(k, r);          // newest read wins
+        });
+
+        map.forEach((_, k) => { if (!freshKeys.has(k)) kept++; });
+
+        return Array.from(map.values());
+    };
+
+    const merged = {
+        income: merge("in", ledger.income, income),
+        expense: merge("out", ledger.expense, expense)
+    };
+
+    saveLedger(merged);
+
+    return { income: merged.income, expense: merged.expense, kept: kept };
+}
+
 /*
     Reads the SMS inbox and fills financeCache.
     Shared by the Income vs Expense modal and the Today dashboard.
@@ -232,11 +313,12 @@ function loadFinanceData() {
             }
         });
 
-        financeCache = { income, expense };
+        financeCache = mergeLedger(income, expense);
 
         console.log(
-            "PayTrack Finance: income rows:", income.length,
-            "expense rows:", expense.length
+            "PayTrack Finance: income rows:", financeCache.income.length,
+            "expense rows:", financeCache.expense.length,
+            "(kept from deleted messages:", financeCache.kept + ")"
         );
 
         return financeCache;
@@ -378,6 +460,15 @@ function renderFinance() {
             Total Out includes ${formatMoney(totalFees)} in transaction fees.
         </p>
     `;
+
+    if (financeCache.kept > 0) {
+        html += `
+            <p class="muted" style="margin-bottom:12px;">
+                Includes ${financeCache.kept} transaction(s) saved by PayTrack
+                whose messages are no longer on this phone.
+            </p>
+        `;
+    }
 
     if (latest) {
         html += `
