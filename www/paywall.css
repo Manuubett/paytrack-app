@@ -1,0 +1,70 @@
+.paywall {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 9000;              /* above modals; PIN lock stays on top while locked */
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(15, 23, 42, 0.92);
+}
+.paywall.show { display: flex; }
+
+.paywall-box {
+    width: 100%;
+    max-width: 360px;
+    background: #fff;
+    color: #111827;
+    border-radius: 16px;
+    padding: 24px 20px;
+    text-align: center;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35);
+}
+
+.paywall-icon { font-size: 40px; margin-bottom: 4px; }
+.paywall-box h2 { margin: 0 0 6px; font-size: 20px; }
+.paywall-price { margin: 0 0 10px; font-size: 18px; color: #047857; }
+.paywall-info { margin: 0 0 16px; font-size: 14px; color: #4b5563; }
+
+.paywall-label {
+    display: block;
+    text-align: left;
+    font-size: 13px;
+    color: #374151;
+    margin-bottom: 14px;
+}
+.paywall-label input {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    margin-top: 6px;
+    padding: 12px;
+    font-size: 16px;
+    border: 1px solid #d1d5db;
+    border-radius: 10px;
+}
+
+.paywall-pay {
+    width: 100%;
+    padding: 14px;
+    border: 0;
+    border-radius: 10px;
+    background: #16a34a;        /* M-PESA green */
+    color: #fff;
+    font-size: 16px;
+    font-weight: 600;
+}
+.paywall-pay:disabled { opacity: 0.6; }
+
+.paywall-link {
+    margin-top: 12px;
+    background: none;
+    border: 0;
+    color: #2563eb;
+    font-size: 14px;
+    text-decoration: underline;
+}
+
+.paywall-status { min-height: 20px; margin: 12px 0 0; font-size: 13px; color: #374151; }
+.paywall-status.error { color: #dc2626; }
+.paywall-status.ok { color: #047857; }

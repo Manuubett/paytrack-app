@@ -1,0 +1,29 @@
+<!-- 1) In index.html <head>, after style.css: -->
+<link rel="stylesheet" href="paywall.css">
+
+<!-- 2) In index.html, right after the #pinLock div (before <header>).
+        It uses class "paywall", NOT "modal", so your Escape / backdrop-tap
+        script can't dismiss it. -->
+<div id="paywall" class="paywall" role="dialog" aria-modal="true" aria-labelledby="paywallTitle">
+    <div class="paywall-box">
+        <div class="paywall-icon">💳</div>
+        <h2 id="paywallTitle">Subscription needed</h2>
+        <p class="paywall-price"><strong>KSh 50</strong> / month</p>
+        <p id="paywallInfo" class="paywall-info">
+            Pay with M-PESA to keep using PayTrack.
+        </p>
+
+        <label class="paywall-label">
+            M-PESA phone number
+            <input type="tel" id="paywallPhone" placeholder="07XXXXXXXX" inputmode="tel" autocomplete="tel">
+        </label>
+
+        <button type="button" id="paywallPayBtn" class="paywall-pay">Pay KSh 50</button>
+        <button type="button" id="paywallCheckBtn" class="paywall-link">I already paid. Check again</button>
+
+        <p id="paywallStatus" class="paywall-status" role="status"></p>
+    </div>
+</div>
+
+<!-- 3) Scripts: add after dashboard.js -->
+<script src="subscription.js"></script>
