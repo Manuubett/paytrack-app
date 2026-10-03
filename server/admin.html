@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>PayTrack payments</title>
+<style>
+:root {
+  --bg:#f2f5f7; --panel:#fff; --ink:#15232d; --mute:#5d6d78; --line:#dde4e9;
+  --paid:#0f7d3a; --pend:#a86a00; --fail:#b3321f; --bar:#0f7d3a;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg:#10181e; --panel:#18232b; --ink:#e7eef2; --mute:#8fa1ad; --line:#2a3944;
+          --paid:#4cc57c; --pend:#e2a23b; --fail:#ef7a68; --bar:#4cc57c; }
+}
+* { box-sizing:border-box; }
+html { background:var(--bg); color:var(--ink); font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+body { margin:0; padding:16px; max-width:900px; margin-inline:auto; }
+h1 { font-size:20px; margin:0; }
+h2 { font-size:15px; margin:0 0 10px; }
+.top { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:14px; }
+.top small { color:var(--mute); display:block; }
+button, select, input { font:inherit; color:inherit; }
+button { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:8px 12px; cursor:pointer; }
+button.primary { background:var(--paid); border-color:var(--paid); color:#fff; font-weight:600; }
+button:focus-visible, select:focus-visible, input:focus-visible { outline:2px solid var(--paid); outline-offset:2px; }
+.panel { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:14px; }
+.hidden { display:none !important; }
+
+.login { max-width:340px; margin:18vh auto 0; }
+.login input { width:100%; padding:11px; border:1px solid var(--line); border-radius:8px; background:var(--bg); margin:8px 0 12px; }
+.err { color:var(--fail); min-height:20px; margin:8px 0 0; font-size:14px; }
+
+.figures { display:grid; grid-template-columns:repeat(4,1fr); }
+.figures > div { padding:0 12px; border-left:1px solid var(--line); }
+.figures > div:first-child { padding-left:0; border-left:0; }
+.figures span { color:var(--mute); font-size:13px; }
+.figures strong { display:block; font-size:22px; letter-spacing:-.01em; }
+.figures small { color:var(--mute); }
+@media (max-width:600px) {
+  .figures { grid-template-columns:1fr 1fr; row-gap:14px; }
+  .figures > div:nth-child(3) { padding-left:0; border-left:0; }
+}
+
+.two { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+@media (max-width:600px) { .two { grid-template-columns:1fr; } }
+.kv { display:flex; justify-content:space-between; padding:7px 0; border-bottom:1px solid var(--line); }
+.kv:last-child { border-bottom:0; }
+.kv b.paid { color:var(--paid); } .kv b.pend { color:var(--pend); } .kv b.fail { color:var(--fail); }
+
+.alert { border-color:var(--pend); background:color-mix(in srgb, var(--pend) 10%, var(--panel)); }
+#chart { width:100%; height:auto; display:block; }
+#chart text { fill:var(--mute); font-size:11px; }
+
+.rows { list-style:none; margin:0; padding:0; }
+.rows li { display:grid; grid-template-columns:1fr auto; gap:2px 12px; padding:10px 0; border-bottom:1px solid var(--line); }
+.rows li:last-child { border-bottom:0; }
+.rows .sub { color:var(--mute); font-size:13px; overflow-wrap:anywhere; }
+.rows .amt { text-align:right; font-weight:600; }
+.chip { font-size:12px; font-weight:600; }
+.chip.paid { color:var(--paid); } .chip.pending { color:var(--pend); } .chip.failed { color:var(--fail); }
+.empty { color:var(--mute); margin:4px 0; }
+.filters { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
+select { padding:7px 10px; border:1px solid var(--line); border-radius:8px; background:var(--panel); }
+</style>
+</head>
+<body>
+
+<section id="login" class="panel login">
+  <h1>PayTrack payments</h1>
+  <label for="token" class="empty">Admin token</label>
+  <input id="token" type="password" autocomplete="current-password">
+  <button id="signIn" class="primary" style="width:100%">Sign in</button>
+  <p id="loginErr" class="err" role="alert"></p>
+</section>
+
+<main id="app" class="hidden">
+  <div class="top">
+    <div>
+      <h1>PayTrack payments</h1>
+      <small id="updated">Loading…</small>
+    </div>
+    <div>
+      <button id="refresh">Refresh</button>
+      <button id="signOut">Sign out</button>
+    </div>
+  </div>
+
+  <div id="stuck" class="panel alert hidden"></div>
+
+  <section class="panel figures" aria-label="Revenue">
+    <div><span>Today</span><strong id="rToday">–</strong><small id="cToday"></small></div>
+    <div><span>Last 7 days</span><strong id="rWeek">–</strong><small id="cWeek"></small></div>
+    <div><span>This month</span><strong id="rMonth">–</strong><small id="cMonth"></small></div>
+    <div><span>All time</span><strong id="rAll">–</strong><small id="cAll"></small></div>
+  </section>
+
+  <section class="panel">
+    <h2>Revenue, last 30 days</h2>
+    <svg id="chart" viewBox="0 0 600 150" role="img" aria-label="Daily revenue for the last 30 days"></svg>
+  </section>
+
+  <div class="two">
+    <section class="panel">
+      <h2>Subscribers</h2>
+      <div class="kv"><span>Active</span><b id="sActive" class="paid">–</b></div>
+      <div class="kv"><span>Expiring within 5 days</span><b id="sSoon" class="pend">–</b></div>
+      <div class="kv"><span>Lapsed</span><b id="sLapsed">–</b></div>
+    </section>
+    <section class="panel">
+      <h2>Payment attempts, last 30 days</h2>
+      <div class="kv"><span>Paid</span><b id="pPaid" class="paid">–</b></div>
+      <div class="kv"><span>Failed or cancelled</span><b id="pFailed" class="fail">–</b></div>
+      <div class="kv"><span>Success rate</span><b id="pRate">–</b></div>
+    </section>
+  </div>
+
+  <section class="panel">
+    <h2>Expiring soon</h2>
+    <ul id="expiring" class="rows"></ul>
+  </section>
+
+  <section class="panel">
+    <div class="filters">
+      <h2 style="margin:0">Payments</h2>
+      <label><span class="empty">Show </span>
+        <select id="filter">
+          <option value="">All</option>
+          <option value="paid">Paid</option>
+          <option value="pending">Pending</option>
+          <option value="failed">Failed</option>
+        </select>
+      </label>
+    </div>
+    <ul id="payments" class="rows"></ul>
+  </section>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const ksh = n => "KSh " + Number(n || 0).toLocaleString("en-KE");
+const when = t => new Date(t).toLocaleString("en-KE", { day:"numeric", month:"short", hour:"2-digit", minute:"2-digit" });
+const TOKEN_KEY = "paytrack_admin_token";
+let timer = null;
+
+async function api(path) {
+  const r = await fetch(path, { headers: { "x-admin-token": sessionStorage.getItem(TOKEN_KEY) || "" } });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) { const e = new Error(d.error || "Request failed"); e.status = r.status; throw e; }
+  return d;
+}
+
+function showLogin(msg) {
+  clearInterval(timer);
+  $("app").classList.add("hidden");
+  $("login").classList.remove("hidden");
+  $("loginErr").textContent = msg || "";
+}
+
+function chart(series) {
+  const W = 600, H = 150, top = 14, bottom = 22, n = series.length;
+  const max = Math.max(...series.map(s => s.amount), 1);
+  const bw = W / n, plot = H - top - bottom;
+  const bars = series.map((s, i) => {
+    const h = Math.max(s.amount ? 2 : 0, (s.amount / max) * plot);
+    return `<rect x="${(i * bw + 2).toFixed(1)}" y="${(top + plot - h).toFixed(1)}" width="${(bw - 4).toFixed(1)}" height="${h.toFixed(1)}" rx="2" fill="var(--bar)">
+      <title>${esc(s.day)}: ${esc(ksh(s.amount))} (${s.count} payment${s.count === 1 ? "" : "s"})</title></rect>`;
+  }).join("");
+  $("chart").innerHTML = bars +
+    `<line x1="0" x2="${W}" y1="${top + plot + .5}" y2="${top + plot + .5}" stroke="var(--line)"/>` +
+    `<text x="0" y="${H - 6}">${esc(series[0].day.slice(5))}</text>` +
+    `<text x="${W}" y="${H - 6}" text-anchor="end">${esc(series[n - 1].day.slice(5))}</text>` +
+    `<text x="${W}" y="10" text-anchor="end">Peak ${esc(ksh(max))}</text>`;
+}
+
+function renderSummary(s) {
+  [["Today","today"],["Week","week"],["Month","month"],["All","all"]].forEach(([k, key]) => {
+    $("r" + k).textContent = ksh(s.revenue[key].amount);
+    $("c" + k).textContent = s.revenue[key].count + " payment" + (s.revenue[key].count === 1 ? "" : "s");
+  });
+  $("sActive").textContent = s.subscribers.active;
+  $("sSoon").textContent = s.subscribers.expiringSoon;
+  $("sLapsed").textContent = s.subscribers.lapsed;
+  $("pPaid").textContent = s.last30.paid;
+  $("pFailed").textContent = s.last30.failed;
+  const done = s.last30.paid + s.last30.failed;
+  $("pRate").textContent = done ? Math.round(s.last30.paid / done * 100) + "%" : "–";
+
+  const stuck = $("stuck");
+  if (s.stuckPending > 0) {
+    stuck.classList.remove("hidden");
+    stuck.innerHTML = `<strong>${s.stuckPending} payment${s.stuckPending === 1 ? "" : "s"} pending for over 5 minutes.</strong>
+      The customer may have paid but the callback didn't arrive. Check the M-PESA statement and the server logs.`;
+  } else stuck.classList.add("hidden");
+
+  $("expiring").innerHTML = s.expiring.length
+    ? s.expiring.map(e => `<li><div>${esc(e.phone || "Unknown number")}</div>
+        <div class="amt">${Math.ceil((e.expiresAt - s.serverTime) / 864e5)} day(s) left</div>
+        <div class="sub">Expires ${esc(when(e.expiresAt))}</div></li>`).join("")
+    : `<li><span class="empty">Nobody expires in the next 5 days.</span></li>`;
+
+  chart(s.series);
+}
+
+function renderPayments(rows) {
+  $("payments").innerHTML = rows.length
+    ? rows.map(p => `<li>
+        <div>${esc(p.phone)} <span class="chip ${esc(p.status)}">${esc(p.status)}</span></div>
+        <div class="amt">${p.status === "paid" ? esc(ksh(p.amount)) : ""}</div>
+        <div class="sub">${esc(when(p.at))}${p.receipt ? " · " + esc(p.receipt) : ""}${p.reason ? " · " + esc(p.reason) : ""}</div>
+      </li>`).join("")
+    : `<li><span class="empty">No payments yet.</span></li>`;
+}
+
+async function load() {
+  try {
+    const [s, p] = await Promise.all([
+      api("/api/admin/summary"),
+      api("/api/admin/payments?limit=50" + ($("filter").value ? "&status=" + $("filter").value : ""))
+    ]);
+    $("login").classList.add("hidden");
+    $("app").classList.remove("hidden");
+    renderSummary(s);
+    renderPayments(p);
+    $("updated").textContent = "Updated " + new Date().toLocaleTimeString("en-KE", { hour:"2-digit", minute:"2-digit" });
+  } catch (e) {
+    if (e.status === 401 || e.status === 429 || e.status === 503) {
+      sessionStorage.removeItem(TOKEN_KEY);
+      showLogin(e.message);
+    } else {
+      $("updated").textContent = "Could not load: " + e.message;
+    }
+  }
+}
+
+function start() {
+  load();
+  clearInterval(timer);
+  timer = setInterval(() => { if (document.visibilityState === "visible") load(); }, 60000);
+}
+
+$("signIn").addEventListener("click", () => {
+  const t = $("token").value.trim();
+  if (!t) return;
+  sessionStorage.setItem(TOKEN_KEY, t);
+  $("token").value = "";
+  start();
+});
+$("token").addEventListener("keydown", e => { if (e.key === "Enter") $("signIn").click(); });
+$("refresh").addEventListener("click", load);
+$("filter").addEventListener("change", load);
+$("signOut").addEventListener("click", () => { sessionStorage.removeItem(TOKEN_KEY); showLogin(""); });
+
+if (sessionStorage.getItem(TOKEN_KEY)) start();
+</script>
+</body>
+</html>

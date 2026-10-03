@@ -107,6 +107,7 @@ async function getToken() {
 /* ---------- app ---------- */
 
 const app = express();
+app.set("trust proxy", 1);   // Render sits behind a proxy; needed for req.ip
 app.use(express.json());
 
 // CORS: the Capacitor Android WebView runs at https://localhost, so calls to
@@ -219,6 +220,111 @@ app.get("/api/pay/:checkoutId", (req, res) => {
 app.get("/api/status/:deviceId", (req, res) => {
   const exp = q.getSub.get(req.params.deviceId)?.expires_at || 0;
   res.json({ active: exp > Date.now(), expiresAt: exp });
+});
+
+/* ---------- admin dashboard ---------- */
+
+const crypto = require("crypto");
+const path = require("path");
+const ADMIN_TOKEN = env.ADMIN_TOKEN || "";
+const EAT = 3 * 3600 * 1000;                 // Kenya is UTC+3
+const authFails = new Map();                 // ip -> { n, reset }
+
+function adminAuth(req, res, next) {
+  if (!ADMIN_TOKEN) return res.status(503).json({ error: "Admin is off. Set ADMIN_TOKEN." });
+  const f = authFails.get(req.ip);
+  if (f && f.n >= 10 && Date.now() < f.reset)
+    return res.status(429).json({ error: "Too many attempts. Try again later." });
+
+  const hash = s => crypto.createHash("sha256").update(String(s)).digest();
+  if (!crypto.timingSafeEqual(hash(req.get("x-admin-token") || ""), hash(ADMIN_TOKEN))) {
+    const cur = f && Date.now() < f.reset ? f : { n: 0, reset: Date.now() + 10 * 60 * 1000 };
+    cur.n++;
+    authFails.set(req.ip, cur);
+    return res.status(401).json({ error: "Wrong token" });
+  }
+  authFails.delete(req.ip);
+  next();
+}
+
+const maskPhone = p => String(p).replace(/^(\d{5})\d+(\d{3})$/, "$1****$2");
+
+app.get("/admin", (req, res) => {
+  res.set("Cache-Control", "no-store");
+  res.sendFile(path.join(__dirname, "admin.html"));
+});
+
+app.get("/api/admin/summary", adminAuth, (req, res) => {
+  const now = Date.now();
+  const dayStart = Math.floor((now + EAT) / DAY_MS) * DAY_MS - EAT;   // midnight EAT today
+  const d = new Date(now + EAT);
+  const monthStart = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1) - EAT;
+
+  const sum = since => db.prepare(
+    "SELECT COALESCE(SUM(amount),0) AS amount, COUNT(*) AS count FROM payments WHERE status='paid' AND created_at>=?"
+  ).get(since);
+
+  const since30 = dayStart - 29 * DAY_MS;
+  const byDay = Object.fromEntries(db.prepare(`
+    SELECT CAST((created_at + ?) / 86400000 AS INTEGER) AS d, SUM(amount) AS amount, COUNT(*) AS count
+    FROM payments WHERE status='paid' AND created_at>=? GROUP BY d`
+  ).all(EAT, since30).map(r => [r.d, r]));
+
+  const series = [];
+  for (let i = 0; i < 30; i++) {
+    const t = since30 + i * DAY_MS;
+    const r = byDay[Math.floor((t + EAT) / DAY_MS)];
+    series.push({
+      day: new Date(t + EAT).toISOString().slice(0, 10),
+      amount: r?.amount || 0,
+      count: r?.count || 0
+    });
+  }
+
+  const status = Object.fromEntries(
+    db.prepare("SELECT status, COUNT(*) AS n FROM payments WHERE created_at>=? GROUP BY status")
+      .all(since30).map(r => [r.status, r.n]));
+
+  const count = (sql, ...a) => db.prepare(sql).get(...a).n;
+  const soon = now + 5 * DAY_MS;
+
+  res.json({
+    revenue: { today: sum(dayStart), week: sum(dayStart - 6 * DAY_MS), month: sum(monthStart), all: sum(0) },
+    subscribers: {
+      active: count("SELECT COUNT(*) AS n FROM subscriptions WHERE expires_at>?", now),
+      expiringSoon: count("SELECT COUNT(*) AS n FROM subscriptions WHERE expires_at>? AND expires_at<=?", now, soon),
+      lapsed: count("SELECT COUNT(*) AS n FROM subscriptions WHERE expires_at<=?", now)
+    },
+    last30: { paid: status.paid || 0, failed: status.failed || 0, pending: status.pending || 0 },
+    stuckPending: count("SELECT COUNT(*) AS n FROM payments WHERE status='pending' AND created_at<?", now - 5 * 60 * 1000),
+    expiring: db.prepare(`
+      SELECT s.expires_at AS expiresAt,
+        (SELECT phone FROM payments p WHERE p.device_id=s.device_id AND p.status='paid'
+         ORDER BY created_at DESC LIMIT 1) AS phone
+      FROM subscriptions s WHERE s.expires_at>? AND s.expires_at<=? ORDER BY s.expires_at LIMIT 10`
+    ).all(now, soon).map(r => ({ expiresAt: r.expiresAt, phone: r.phone ? maskPhone(r.phone) : null })),
+    series,
+    price: PRICE,
+    serverTime: now
+  });
+});
+
+app.get("/api/admin/payments", adminAuth, (req, res) => {
+  const st = ["paid", "pending", "failed"].includes(req.query.status) ? req.query.status : null;
+  const limit = Math.min(Number(req.query.limit) || 50, 200);
+  const rows = db.prepare(`
+    SELECT checkout_id, phone, status, reason, receipt, amount, created_at
+    FROM payments ${st ? "WHERE status=?" : ""} ORDER BY created_at DESC LIMIT ?`
+  ).all(...(st ? [st, limit] : [limit]));
+  res.json(rows.map(r => ({
+    id: r.checkout_id.slice(-8),
+    phone: maskPhone(r.phone),
+    status: r.status,
+    reason: r.reason,
+    receipt: r.receipt,
+    amount: r.amount,
+    at: r.created_at
+  })));
 });
 
 app.listen(process.env.PORT || 3000, () => console.log("PayTrack backend up"));
