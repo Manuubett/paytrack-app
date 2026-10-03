@@ -35,6 +35,7 @@ console.log(`Daraja: ${IS_PROD ? "PRODUCTION" : "sandbox"} | ${TXN_TYPE} | callb
 const PRICE = 50;
 const DAY_MS = 864e5;
 const PERIOD_DAYS = 30;
+const TRIAL_DAYS = Number(env.TRIAL_DAYS ?? 14);   // free trial length; 0 turns trials off
 
 /* ---------- database ---------- */
 
@@ -57,6 +58,10 @@ db.exec(`
     created_at  INTEGER NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_payments_device ON payments(device_id);
+  CREATE TABLE IF NOT EXISTS trials (
+    device_id  TEXT PRIMARY KEY,                    -- one trial per device, ever
+    started_at INTEGER NOT NULL
+  );
 `);
 
 const q = {
@@ -68,6 +73,8 @@ const q = {
   paidPayment: db.prepare(
     "UPDATE payments SET status='paid', receipt=?, amount=? WHERE checkout_id=? AND status='pending'"),
   getSub: db.prepare("SELECT expires_at FROM subscriptions WHERE device_id = ?"),
+  getTrial: db.prepare("SELECT started_at FROM trials WHERE device_id = ?"),
+  insertTrial: db.prepare("INSERT OR IGNORE INTO trials (device_id, started_at) VALUES (?, ?)"),
   upsertSub: db.prepare(`
     INSERT INTO subscriptions (device_id, expires_at) VALUES (?, ?)
     ON CONFLICT(device_id) DO UPDATE SET expires_at = excluded.expires_at`),
@@ -80,7 +87,10 @@ const creditPayment = db.transaction((checkoutId, deviceId, receipt, amount) => 
   const res = q.paidPayment.run(receipt, amount, checkoutId);
   if (res.changes === 0) return false;                 // duplicate or unknown
   const cur = q.getSub.get(deviceId)?.expires_at || 0;
-  q.upsertSub.run(deviceId, Math.max(Date.now(), cur) + PERIOD_DAYS * DAY_MS);
+  // Paying during a trial adds 30 days after the trial ends (nothing is lost)
+  const trialStart = q.getTrial.get(deviceId)?.started_at;
+  const trialEnd = trialStart ? trialStart + TRIAL_DAYS * DAY_MS : 0;
+  q.upsertSub.run(deviceId, Math.max(Date.now(), cur, trialEnd) + PERIOD_DAYS * DAY_MS);
   return true;
 });
 
@@ -217,9 +227,28 @@ app.get("/api/pay/:checkoutId", (req, res) => {
 });
 
 // 4) Is this device subscribed?
+const validDeviceId = id => /^[A-Za-z0-9_-]{8,64}$/.test(String(id));
+
 app.get("/api/status/:deviceId", (req, res) => {
-  const exp = q.getSub.get(req.params.deviceId)?.expires_at || 0;
-  res.json({ active: exp > Date.now(), expiresAt: exp });
+  const id = req.params.deviceId;
+  if (!validDeviceId(id)) return res.status(400).json({ error: "Bad device id" });
+
+  const now = Date.now();
+  let trial = q.getTrial.get(id);
+  if (!trial && TRIAL_DAYS > 0) {            // first time we see this device: start its trial
+    q.insertTrial.run(id, now);
+    trial = { started_at: now };
+  }
+  const paidUntil = q.getSub.get(id)?.expires_at || 0;
+  const trialEnds = trial ? trial.started_at + TRIAL_DAYS * DAY_MS : 0;
+  const expiresAt = Math.max(paidUntil, trialEnds);
+
+  res.json({
+    active: expiresAt > now,
+    expiresAt,
+    plan: paidUntil > now ? "paid" : trialEnds > now ? "trial" : "none",
+    trialUsed: !!trial
+  });
 });
 
 /* ---------- admin dashboard ---------- */
