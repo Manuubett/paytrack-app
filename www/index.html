@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PayTrack | Payment Reconciliation</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="paywall.css"> <!-- NEW -->
 </head>
 
 <body class="is-locked">
@@ -42,6 +43,34 @@
             </div>
         </div>
     </div>
+
+
+    <!-- ========================= -->
+    <!-- SUBSCRIPTION PAYWALL (NEW)                                  -->
+    <!-- Uses class "paywall", not "modal", so the Escape / backdrop -->
+    <!-- script at the bottom of this file cannot dismiss it.        -->
+    <!-- ========================= -->
+    <div id="paywall" class="paywall" role="dialog" aria-modal="true" aria-labelledby="paywallTitle">
+        <div class="paywall-box">
+            <div class="paywall-icon">💳</div>
+            <h2 id="paywallTitle">Subscription needed</h2>
+            <p class="paywall-price"><strong>KSh 50</strong> / month</p>
+            <p id="paywallInfo" class="paywall-info">
+                Pay with M-PESA to keep using PayTrack.
+            </p>
+
+            <label class="paywall-label">
+                M-PESA phone number
+                <input type="tel" id="paywallPhone" placeholder="07XXXXXXXX" inputmode="tel" autocomplete="tel">
+            </label>
+
+            <button type="button" id="paywallPayBtn" class="paywall-pay">Pay KSh 50</button>
+            <button type="button" id="paywallCheckBtn" class="paywall-link">I already paid. Check again</button>
+
+            <p id="paywallStatus" class="paywall-status" role="status"></p>
+        </div>
+    </div>
+
 
     <!-- HEADER -->
     <header class="topbar">
@@ -214,6 +243,8 @@
     </main>
 
     <footer class="app-footer">
+        <!-- NEW: shows "Subscribed until ..." and a Renew link -->
+        <p id="subStatus" class="muted" style="margin:0 0 6px;"></p>
         <button type="button" id="changePinBtn" class="link-btn">Change PIN</button>
     </footer>
 
@@ -314,7 +345,6 @@
 
     <!-- ========================= -->
     <!-- INCOME VS EXPENSE MODAL -->
-    <!-- (was wrongly nested inside the payment modal) -->
     <!-- ========================= -->
     <div id="financeModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="financeModalTitle">
         <div class="modal-box details-box">
@@ -423,11 +453,13 @@
     <script src="mpesa-parser-extended.js"></script>
     <script src="finance.js"></script>
     <script src="dashboard.js"></script>
+    <script src="subscription.js"></script> <!-- NEW -->
     <script src="toggles.js"></script>
     <script src="sms-groups.js"></script>
     <script src="android-bridge.js"></script>
 
-    <!-- Close any modal with Escape or by tapping the dark backdrop -->
+    <!-- Close any modal with Escape or by tapping the dark backdrop.
+         (The paywall is not a .modal, so it is not affected.) -->
     <script>
         document.addEventListener('keydown', function (e) {
             if (e.key !== 'Escape') return;
