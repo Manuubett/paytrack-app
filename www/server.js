@@ -1,14 +1,37 @@
 // PAYTRACK BACKEND — Daraja STK Push + SQLite
 //
 //   npm i express better-sqlite3
-//   env: KEY SECRET SHORTCODE PASSKEY CALLBACK_URL [DARAJA_BASE] [DB_PATH] [PORT]
-//   (production: DARAJA_BASE=https://api.safaricom.co.ke)
+//   env: DARAJA_CONSUMER_KEY DARAJA_CONSUMER_SECRET DARAJA_SHORTCODE DARAJA_PASSKEY
+//        DARAJA_CALLBACK_BASE_URL DARAJA_ENV [DARAJA_TRANSACTION_TYPE] [DARAJA_TILL_NUMBER]
+//        [DB_PATH] [PORT]
 
 const express = require("express");
 const Database = require("better-sqlite3");
 
-const BASE = process.env.DARAJA_BASE || "https://sandbox.safaricom.co.ke";
-const { KEY, SECRET, SHORTCODE, PASSKEY, CALLBACK_URL } = process.env;
+// Env var names match your existing Render setup (instasend-backend)
+const env = process.env;
+const IS_PROD = /^(prod|production|live)$/i.test(env.DARAJA_ENV || "");
+const BASE = IS_PROD ? "https://api.safaricom.co.ke" : "https://sandbox.safaricom.co.ke";
+
+const KEY = env.DARAJA_CONSUMER_KEY;
+const SECRET = env.DARAJA_CONSUMER_SECRET;
+const SHORTCODE = env.DARAJA_SHORTCODE;        // used for the STK password
+const PASSKEY = env.DARAJA_PASSKEY;
+const TXN_TYPE = env.DARAJA_TRANSACTION_TYPE || "CustomerPayBillOnline";
+// Paybill: money goes to the shortcode. Till (Buy Goods): PartyB is the till number.
+const PARTY_B = TXN_TYPE === "CustomerBuyGoodsOnline"
+  ? (env.DARAJA_TILL_NUMBER || SHORTCODE)
+  : SHORTCODE;
+const CALLBACK_URL =
+  (env.DARAJA_CALLBACK_BASE_URL || "").replace(/\/+$/, "") + "/api/mpesa/callback";
+
+const missing = ["DARAJA_CONSUMER_KEY", "DARAJA_CONSUMER_SECRET", "DARAJA_SHORTCODE",
+  "DARAJA_PASSKEY", "DARAJA_CALLBACK_BASE_URL"].filter(k => !env[k]);
+if (missing.length) {
+  console.error("Missing env vars: " + missing.join(", "));
+  process.exit(1);
+}
+console.log(`Daraja: ${IS_PROD ? "PRODUCTION" : "sandbox"} | ${TXN_TYPE} | callback ${CALLBACK_URL}`);
 const PRICE = 50;
 const DAY_MS = 864e5;
 const PERIOD_DAYS = 30;
@@ -86,6 +109,25 @@ async function getToken() {
 const app = express();
 app.use(express.json());
 
+// CORS: the Capacitor Android WebView runs at https://localhost, so calls to
+// this server are cross-origin and need these headers.
+const ALLOWED_ORIGINS = new Set([
+  "https://localhost",      // Capacitor Android default (androidScheme: https)
+  "http://localhost",
+  "capacitor://localhost"
+]);
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && ALLOWED_ORIGINS.has(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Vary", "Origin");
+    res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  }
+  if (req.method === "OPTIONS") return res.sendStatus(204);
+  next();
+});
+
 // 1) Start a payment
 app.post("/api/pay", async (req, res) => {
   try {
@@ -112,10 +154,10 @@ app.post("/api/pay", async (req, res) => {
         BusinessShortCode: SHORTCODE,
         Password: Buffer.from(SHORTCODE + PASSKEY + ts).toString("base64"),
         Timestamp: ts,
-        TransactionType: "CustomerPayBillOnline", // "CustomerBuyGoodsOnline" for a Till
+        TransactionType: TXN_TYPE,
         Amount: PRICE,
         PartyA: msisdn,
-        PartyB: SHORTCODE,
+        PartyB: PARTY_B,
         PhoneNumber: msisdn,
         CallBackURL: CALLBACK_URL,
         AccountReference: "PayTrack",
