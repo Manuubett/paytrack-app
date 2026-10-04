@@ -6,7 +6,7 @@
     doesn't lock a paying user out.
 */
 
-const API = "https://paytrack-app.onrender.com";   // must be HTTPS
+const API = "https://your-server.example.com";   // must be HTTPS
 const SUB_CACHE_KEY = "paytrack_sub_expiry";
 const OFFLINE_GRACE_MS = 3 * 24 * 60 * 60 * 1000; // 3 days
 
@@ -120,6 +120,7 @@ function showSubStatus(s) {
 async function enforceSubscription() {
     try {
         const s = await fetchSubscription();
+        console.log("PayTrack subscription:", JSON.stringify(s), "device:", DEVICE_ID);
         localStorage.setItem(SUB_CACHE_KEY, String(s.expiresAt || 0));
         showSubStatus(s);
         if (s.active) { closePaywall(); return true; }
@@ -131,6 +132,7 @@ async function enforceSubscription() {
         return false;
 
     } catch (e) {
+        console.error("PayTrack subscription check failed:", e && e.message);
         // Offline / server down: allow if expiry (plus grace) hasn't passed
         const cached = Number(localStorage.getItem(SUB_CACHE_KEY)) || 0;
         if (cached && Date.now() < cached + OFFLINE_GRACE_MS) return true;

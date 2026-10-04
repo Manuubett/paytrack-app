@@ -35,7 +35,10 @@ console.log(`Daraja: ${IS_PROD ? "PRODUCTION" : "sandbox"} | ${TXN_TYPE} | callb
 const PRICE = 50;
 const DAY_MS = 864e5;
 const PERIOD_DAYS = 30;
-const TRIAL_DAYS = Number(env.TRIAL_DAYS ?? 14);   // free trial length; 0 turns trials off
+const parsedTrial = parseInt(env.TRIAL_DAYS, 10);
+// Free trial length in days. Blank or invalid values fall back to 14; 0 turns trials off.
+const TRIAL_DAYS = Number.isFinite(parsedTrial) && parsedTrial >= 0 ? parsedTrial : 14;
+console.log(`Trial: ${TRIAL_DAYS} day(s)`);
 
 /* ---------- database ---------- */
 
