@@ -6,7 +6,7 @@
     doesn't lock a paying user out.
 */
 
-const API = "https://your-server.example.com";   // must be HTTPS
+const API = "https://paytrack-app.onrender.com";   // must be HTTPS
 const SUB_CACHE_KEY = "paytrack_sub_expiry";
 const OFFLINE_GRACE_MS = 3 * 24 * 60 * 60 * 1000; // 3 days
 
