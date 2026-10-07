@@ -21,7 +21,7 @@
     const PROJECT_ID = "divine-treat-450709-b5";
     const API_KEY    = "AIzaSyDPZLbDio7OibE-FEXqFF1OdhM0qZc3yII";   // public web key, same as the store page
     const BACKEND    = "https://cbe-y1zb.onrender.com";
-    const STORE_URL  = "https://manuubett.github.io/apks-store/";
+    const STORE_URL  = "https://dehemanuelssolutions.co.ke/appstore";
 
     const DISMISS_KEY = "paytrack_update_dismissed";
     const MIN_GAP_MS  = 30 * 60 * 1000;      // check at most every 30 minutes
