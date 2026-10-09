@@ -1,9 +1,11 @@
 /*
-    PAYTRACK — TODAY DASHBOARD
+    PAYTRACK — TODAY DASHBOARD (with last 7 days)
 
-    Shows today's money in and money out, the latest M-PESA balance, and
-    a list of today's transactions. Data comes from the phone's M-PESA
-    SMS inbox through loadFinanceData() in finance.js.
+    Shows money in and money out, the latest M-PESA balance, and a list of
+    transactions for ONE day. A strip of the last 7 days sits above the
+    cards: each day shows its profit, and tapping a day shows that day's
+    figures and transactions. Personal transactions are left out everywhere.
+    Data comes from the phone's M-PESA SMS inbox through loadFinanceData().
 
     Refreshes: after unlock, when the app returns to the foreground,
     every couple of minutes, and when you tap Refresh.
@@ -14,8 +16,11 @@ let dashboardLast = 0;
 let dashboardTimer = null;
 
 const DASHBOARD_MAX_ROWS = 15;
+const WEEK_DAYS = 7;
 
 let dashboardData = null;
+let dashboardDay = null;        // null = today (follows midnight automatically)
+let dashboardShowAll = false;
 const PERSONAL_KEY = "paytrack_personal_rows";
 
 
@@ -45,6 +50,8 @@ function dashboardRowKey(kind, r) {
 }
 
 
+/* ---------- dates ---------- */
+
 function localISO(d) {
     d = d || new Date();
     return (
@@ -53,6 +60,18 @@ function localISO(d) {
         String(d.getDate()).padStart(2, "0")
     );
 }
+
+function isoDaysAgo(n) {
+    const d = new Date();
+    d.setHours(12, 0, 0, 0);            // noon avoids any daylight-saving edge
+    d.setDate(d.getDate() - n);
+    return localISO(d);
+}
+
+function dayLabel(iso, opts) {
+    return new Date(iso + "T12:00:00").toLocaleDateString("en-KE", opts);
+}
+
 
 function dashboardUnlocked() {
     return !window.PayTrackLock || window.PayTrackLock.isUnlocked();
@@ -70,10 +89,87 @@ function setDashboardStatus(message, isError) {
     el.classList.toggle("neg", !!isError);
 }
 
+function setText(id, text) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = text;
+}
+
 function plural(n, word) {
     return n + " " + word + (n === 1 ? "" : "s");
 }
 
+
+/* ---------- last 7 days ---------- */
+
+function weekSummary(data, personal) {
+
+    const days = [];
+    const index = {};
+
+    for (let i = WEEK_DAYS - 1; i >= 0; i--) {
+        const day = { date: isoDaysAgo(i), inAmt: 0, outAmt: 0, count: 0, net: 0 };
+        days.push(day);
+        index[day.date] = day;
+    }
+
+    data.income.forEach(r => {
+        const d = index[r.date];
+        if (!d || personal.has(dashboardRowKey("in", r))) return;
+        d.inAmt += Number(r.amount) || 0;
+        d.count++;
+    });
+
+    data.expense.forEach(r => {
+        const d = index[r.date];
+        if (!d || personal.has(dashboardRowKey("out", r))) return;
+        d.outAmt += dashboardOut(r);
+        d.count++;
+    });
+
+    days.forEach(d => { d.net = d.inAmt - d.outAmt; });
+
+    return days;
+}
+
+function renderWeekStrip(days, selected, today) {
+
+    const strip = document.getElementById("weekStrip");
+    if (strip) {
+        strip.innerHTML = days.map(d => {
+
+            const isSel = d.date === selected;
+            const title = d.date === today
+                ? "Today"
+                : dayLabel(d.date, { weekday: "short" });
+
+            return `
+                <button type="button"
+                        class="week-day${isSel ? " is-selected" : ""}"
+                        data-day="${escapeHtml(d.date)}"
+                        aria-pressed="${isSel}">
+                    <span class="wd-name">${escapeHtml(title)}</span>
+                    <span class="wd-date">${escapeHtml(dayLabel(d.date, { day: "numeric", month: "short" }))}</span>
+                    <span class="wd-net ${d.count ? (d.net >= 0 ? "pos" : "neg") : "muted"}">
+                        ${d.count ? escapeHtml(formatMoney(d.net)) : "–"}
+                    </span>
+                </button>`;
+        }).join("");
+    }
+
+    const totalIn = days.reduce((s, d) => s + d.inAmt, 0);
+    const totalOut = days.reduce((s, d) => s + d.outAmt, 0);
+    const net = totalIn - totalOut;
+
+    setText(
+        "weekTotal",
+        "Last 7 days: in " + formatMoney(totalIn) +
+        " · out " + formatMoney(totalOut) +
+        " · " + (net >= 0 ? "profit " : "loss ") + formatMoney(Math.abs(net))
+    );
+}
+
+
+/* ---------- main render ---------- */
 
 function renderDashboard(data) {
 
@@ -83,12 +179,27 @@ function renderDashboard(data) {
 
     const personal = loadPersonal();
 
+    // week strip (also validates the selected day)
+    const days = weekSummary(data, personal);
+
+    if (dashboardDay && !days.some(d => d.date === dashboardDay)) {
+        dashboardDay = null;
+    }
+
+    const day = dashboardDay || today;
+    const isToday = day === today;
+    const dayName = isToday
+        ? "today"
+        : dayLabel(day, { weekday: "short", day: "numeric", month: "short" });
+
+    renderWeekStrip(days, day, today);
+
     const inAll = data.income
-        .filter(r => r.date === today)
+        .filter(r => r.date === day)
         .map(r => ({ row: r, key: dashboardRowKey("in", r) }));
 
     const outAll = data.expense
-        .filter(r => r.date === today)
+        .filter(r => r.date === day)
         .map(r => ({ row: r, key: dashboardRowKey("out", r) }));
 
     const inRows = inAll.filter(x => !personal.has(x.key)).map(x => x.row);
@@ -104,12 +215,18 @@ function renderDashboard(data) {
     document.getElementById("todayIn").textContent = formatMoney(totalIn);
     document.getElementById("todayOut").textContent = formatMoney(totalOut);
 
+    setText("todayInLabel", "Money In (" + dayName + ")");
+    setText("todayOutLabel", "Money Out (" + dayName + ")");
+
     const netEl = document.getElementById("todayNet");
     netEl.textContent = formatMoney(net);
     netEl.className = net >= 0 ? "pos" : "neg";
 
     const netLabel = document.getElementById("todayNetLabel");
-    if (netLabel) netLabel.textContent = net >= 0 ? "Profit Today" : "Loss Today";
+    if (netLabel) {
+        netLabel.textContent =
+            (net >= 0 ? "Profit" : "Loss") + (isToday ? " Today" : " · " + dayName);
+    }
 
     const exEl = document.getElementById("todayExcluded");
     if (exEl) {
@@ -142,7 +259,7 @@ function renderDashboard(data) {
           escapeHtml(latest.date + (latest.time ? " " + latest.time : "")) + ")"
         : "";
 
-    // ---------- today's transactions ----------
+    // ---------- the selected day's transactions ----------
 
     const items = [];
 
@@ -167,16 +284,32 @@ function renderDashboard(data) {
     items.sort((a, b) => (b.time || "00:00").localeCompare(a.time || "00:00"));
 
     const countEl = document.getElementById("todayListCount");
-    if (countEl) countEl.textContent = items.length ? "(" + items.length + ")" : "";
+    if (countEl) {
+        countEl.textContent = items.length
+            ? (isToday ? "" : dayName + " ") + "(" + items.length + ")"
+            : (isToday ? "" : dayName);
+    }
 
     const list = document.getElementById("todayList");
 
     if (items.length === 0) {
-        list.innerHTML = "<p class='muted'>No M-PESA transactions today yet.</p>";
+        list.innerHTML = "<p class='muted'>" +
+            (isToday ? "No M-PESA transactions today yet."
+                     : "No M-PESA transactions on this day.") +
+            "</p>";
         return;
     }
 
-    const shown = items.slice(0, DASHBOARD_MAX_ROWS);
+    const shown = dashboardShowAll ? items : items.slice(0, DASHBOARD_MAX_ROWS);
+
+    let footer = "";
+
+    if (items.length > DASHBOARD_MAX_ROWS) {
+        footer = dashboardShowAll
+            ? "<button type='button' class='mark-btn' data-showall='0' style='margin-top:8px;'>Show fewer</button>"
+            : "<button type='button' class='mark-btn' data-showall='1' style='margin-top:8px;'>Show all (" +
+              (items.length - shown.length) + " more)</button>";
+    }
 
     list.innerHTML =
         shown.map(it => `
@@ -194,11 +327,7 @@ function renderDashboard(data) {
                     </button>
                 </div>
             </div>
-        `).join("") +
-        (items.length > shown.length
-            ? "<p class='muted' style='margin-top:8px;'>+ " +
-              (items.length - shown.length) + " more today</p>"
-            : "");
+        `).join("") + footer;
 }
 
 
@@ -296,15 +425,24 @@ if (!window.PayTrackLock) {
 }
 
 
-// Tap "Personal" / "Count it" on a transaction
+// Tap "Personal" / "Count it" on a transaction, or "Show all" / "Show fewer"
 (function () {
     const list = document.getElementById("todayList");
     if (!list) return;
 
     list.addEventListener("click", function (e) {
 
+        if (!dashboardData) return;
+
+        const more = e.target.closest("[data-showall]");
+        if (more) {
+            dashboardShowAll = more.getAttribute("data-showall") === "1";
+            renderDashboard(dashboardData);
+            return;
+        }
+
         const btn = e.target.closest("[data-mark]");
-        if (!btn || !dashboardData) return;
+        if (!btn) return;
 
         const key = btn.getAttribute("data-mark");
         const set = loadPersonal();
@@ -313,6 +451,26 @@ if (!window.PayTrackLock) {
         else set.add(key);
 
         savePersonal(set);
+        renderDashboard(dashboardData);
+    });
+})();
+
+
+// Tap a day in the last-7-days strip
+(function () {
+    const strip = document.getElementById("weekStrip");
+    if (!strip) return;
+
+    strip.addEventListener("click", function (e) {
+
+        const btn = e.target.closest("[data-day]");
+        if (!btn || !dashboardData) return;
+
+        const date = btn.getAttribute("data-day");
+
+        dashboardDay = date === localISO() ? null : date;
+        dashboardShowAll = false;
+
         renderDashboard(dashboardData);
     });
 })();
