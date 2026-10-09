@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PayTrack | Payment Reconciliation</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="week-strip.css">
     <link rel="stylesheet" href="paywall.css"> <!-- NEW -->
 </head>
 
@@ -105,15 +106,18 @@
                 </button>
             </div>
 
+            <div id="weekStrip" class="week-strip" aria-label="Last 7 days"></div>
+            <p id="weekTotal" class="muted today-status"></p>
+
             <div class="today-cards">
                 <div class="today-card in">
-                    <span>Money In (today)</span>
+                    <span id="todayInLabel">Money In (today)</span>
                     <strong id="todayIn" class="pos">KSh 0</strong>
                     <small id="todayInCount">0 transactions</small>
                 </div>
 
                 <div class="today-card out">
-                    <span>Money Out (today)</span>
+                    <span id="todayOutLabel">Money Out (today)</span>
                     <strong id="todayOut" class="neg">KSh 0</strong>
                     <small id="todayOutCount">0 transactions</small>
                 </div>
