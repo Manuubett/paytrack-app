@@ -1,0 +1,41 @@
+/* Last 7 days strip on the dashboard */
+.week-strip {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 4px 2px 10px;
+    margin-bottom: 4px;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity;
+}
+
+.week-day {
+    flex: 0 0 auto;
+    min-width: 84px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    align-items: center;
+    padding: 8px 6px;
+    border: 1px solid rgba(128, 128, 128, 0.35);
+    border-radius: 10px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+    scroll-snap-align: end;
+}
+
+.week-day .wd-name { font-size: 12px; font-weight: 600; }
+.week-day .wd-date { font-size: 11px; opacity: 0.7; }
+.week-day .wd-net  { font-size: 13px; font-weight: 700; }
+
+.week-day.is-selected {
+    border-color: #16a34a;
+    background: rgba(22, 163, 74, 0.14);
+}
+
+.week-day:focus-visible {
+    outline: 2px solid #16a34a;
+    outline-offset: 2px;
+}
