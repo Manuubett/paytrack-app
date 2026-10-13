@@ -122,6 +122,23 @@ select { padding:7px 10px; border:1px solid var(--line); border-radius:8px; back
   </section>
 
   <section class="panel">
+    <h2>Devices (<span id="devCount">0</span>)</h2>
+    <p id="devCounts" class="empty"></p>
+    <div class="filters" style="flex-wrap:wrap;gap:8px;">
+      <input id="devSearch" type="search" placeholder="Search phone, model or ID" aria-label="Search devices"
+             style="flex:1;min-width:150px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel);">
+      <select id="devPlan" aria-label="Filter by plan">
+        <option value="">All</option>
+        <option value="paid">Paid</option>
+        <option value="trial">On trial</option>
+        <option value="expired">Expired</option>
+      </select>
+      <label><input type="checkbox" id="devFull"> Full numbers</label>
+    </div>
+    <ul id="devices" class="rows"></ul>
+  </section>
+
+  <section class="panel">
     <div class="filters">
       <h2 style="margin:0">Payments</h2>
       <label><span class="empty">Show </span>
@@ -214,6 +231,32 @@ function renderPayments(rows) {
     : `<li><span class="empty">No payments yet.</span></li>`;
 }
 
+const dayOnly = t => t ? new Date(t).toLocaleDateString("en-KE", { weekday:"short", day:"numeric", month:"short", year:"numeric" }) : "–";
+
+function renderDevices(d) {
+  $("devCount").textContent = d.total;
+  $("devCounts").textContent = "Paid " + d.counts.paid + " · On trial " + d.counts.trial + " · Expired " + d.counts.expired;
+  $("devices").innerHTML = d.devices.length
+    ? d.devices.map(x => `<li>
+        <div>${esc(x.device || "Unknown device")}${x.phone ? " · " + esc(x.phone) : ""}
+          <span class="chip ${x.plan === "paid" ? "paid" : x.plan === "trial" ? "pending" : "failed"}">${esc(x.plan)}</span></div>
+        <div class="amt">${x.daysLeft > 0 ? x.daysLeft + " d left" : "ended"}</div>
+        <div class="sub">${x.plan === "trial" ? "Trial ends " : x.plan === "paid" ? "Renew by " : "Ended "}${esc(dayOnly(x.expiresAt))}
+          · Last paid ${esc(dayOnly(x.lastPaid))}${x.paidCount ? " (" + x.paidCount + "×)" : ""}
+          · First seen ${esc(dayOnly(x.firstSeen))}
+          · App ${esc(x.appVersion || "?")} · ID …${esc(x.idTail)}</div>
+      </li>`).join("")
+    : `<li><span class="empty">No devices match.</span></li>`;
+}
+
+async function loadDevices() {
+  const p = new URLSearchParams();
+  if ($("devSearch").value.trim()) p.set("q", $("devSearch").value.trim());
+  if ($("devPlan").value) p.set("plan", $("devPlan").value);
+  if ($("devFull").checked) p.set("full", "1");
+  renderDevices(await api("/api/admin/devices?" + p.toString()));
+}
+
 async function load() {
   try {
     const [s, p] = await Promise.all([
@@ -224,6 +267,7 @@ async function load() {
     $("app").classList.remove("hidden");
     renderSummary(s);
     renderPayments(p);
+    loadDevices().catch(function () {});
     $("updated").textContent = "Updated " + new Date().toLocaleTimeString("en-KE", { hour:"2-digit", minute:"2-digit" });
   } catch (e) {
     if (e.status === 401 || e.status === 429 || e.status === 503) {
@@ -251,6 +295,10 @@ $("signIn").addEventListener("click", () => {
 $("token").addEventListener("keydown", e => { if (e.key === "Enter") $("signIn").click(); });
 $("refresh").addEventListener("click", load);
 $("filter").addEventListener("change", load);
+let devTimer = null;
+$("devSearch").addEventListener("input", () => { clearTimeout(devTimer); devTimer = setTimeout(() => loadDevices().catch(() => {}), 300); });
+$("devPlan").addEventListener("change", () => loadDevices().catch(() => {}));
+$("devFull").addEventListener("change", () => loadDevices().catch(() => {}));
 $("signOut").addEventListener("click", () => { sessionStorage.removeItem(TOKEN_KEY); showLogin(""); });
 
 if (sessionStorage.getItem(TOKEN_KEY)) start();
