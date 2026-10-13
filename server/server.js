@@ -42,7 +42,10 @@ console.log(`Trial: ${TRIAL_DAYS} day(s)`);
 
 /* ---------- database ---------- */
 
-const db = new Database(process.env.DB_PATH || "paytrack.db");
+const DB_FILE = process.env.DB_PATH || "paytrack.db";
+const db = new Database(DB_FILE);
+console.log(`Database: ${DB_FILE}` +
+  (process.env.DB_PATH ? "" : "  (WARNING: DB_PATH not set, data is lost on every restart/deploy)"));
 db.pragma("journal_mode = WAL");
 
 db.exec(`
@@ -61,6 +64,15 @@ db.exec(`
     created_at  INTEGER NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_payments_device ON payments(device_id);
+  CREATE TABLE IF NOT EXISTS devices (
+    device_id    TEXT PRIMARY KEY,
+    manufacturer TEXT,
+    model        TEXT,
+    os           TEXT,
+    app_version  TEXT,
+    first_seen   INTEGER NOT NULL,
+    last_seen    INTEGER NOT NULL
+  );
   CREATE TABLE IF NOT EXISTS trials (
     device_id  TEXT PRIMARY KEY,                    -- one trial per device, ever
     started_at INTEGER NOT NULL
@@ -76,6 +88,11 @@ const q = {
   paidPayment: db.prepare(
     "UPDATE payments SET status='paid', receipt=?, amount=? WHERE checkout_id=? AND status='pending'"),
   getSub: db.prepare("SELECT expires_at FROM subscriptions WHERE device_id = ?"),
+  upsertDevice: db.prepare(`
+    INSERT INTO devices (device_id, manufacturer, model, os, app_version, first_seen, last_seen)
+    VALUES (?,?,?,?,?,?,?)
+    ON CONFLICT(device_id) DO UPDATE SET manufacturer=excluded.manufacturer, model=excluded.model,
+      os=excluded.os, app_version=excluded.app_version, last_seen=excluded.last_seen`),
   getTrial: db.prepare("SELECT started_at FROM trials WHERE device_id = ?"),
   insertTrial: db.prepare("INSERT OR IGNORE INTO trials (device_id, started_at) VALUES (?, ?)"),
   upsertSub: db.prepare(`
@@ -254,6 +271,17 @@ app.get("/api/status/:deviceId", (req, res) => {
   });
 });
 
+// The app reports basic device info once a day (model only; no name, IMEI or number)
+app.post("/api/device", (req, res) => {
+  const b = req.body || {};
+  if (!validDeviceId(b.deviceId)) return res.status(400).json({ error: "Bad device id" });
+  const clip = (v, n) => String(v || "").replace(/[\u0000-\u001f<>]/g, "").trim().slice(0, n);
+  const now = Date.now();
+  q.upsertDevice.run(b.deviceId, clip(b.manufacturer, 40), clip(b.model, 60),
+                     clip(b.os, 40), clip(b.appVersion, 20), now, now);
+  res.json({ ok: true });
+});
+
 /* ---------- admin dashboard ---------- */
 
 const crypto = require("crypto");
@@ -357,6 +385,67 @@ app.get("/api/admin/payments", adminAuth, (req, res) => {
     amount: r.amount,
     at: r.created_at
   })));
+});
+
+app.get("/api/admin/devices", adminAuth, (req, res) => {
+  const now = Date.now();
+  const full = req.query.full === "1";
+  const search = String(req.query.q || "").trim().toLowerCase();
+  const digits = search.replace(/\D/g, "").replace(/^0/, "254");
+  const planFilter = ["paid", "trial", "expired"].includes(req.query.plan) ? req.query.plan : "";
+
+  const rows = db.prepare(`
+    SELECT b.device_id, d.manufacturer, d.model, d.os, d.app_version, d.first_seen, d.last_seen,
+           t.started_at AS trial_started, s.expires_at AS paid_until,
+           (SELECT phone FROM payments p WHERE p.device_id=b.device_id ORDER BY p.created_at DESC LIMIT 1) AS phone,
+           (SELECT COUNT(*) FROM payments p WHERE p.device_id=b.device_id AND p.status='paid') AS paid_count,
+           (SELECT MAX(p.created_at) FROM payments p WHERE p.device_id=b.device_id AND p.status='paid') AS last_paid
+    FROM (SELECT device_id FROM trials UNION SELECT device_id FROM subscriptions UNION SELECT device_id FROM devices) b
+    LEFT JOIN devices d ON d.device_id = b.device_id
+    LEFT JOIN trials t ON t.device_id = b.device_id
+    LEFT JOIN subscriptions s ON s.device_id = b.device_id
+    ORDER BY COALESCE(d.last_seen, t.started_at, s.expires_at, 0) DESC
+    LIMIT 2000`).all();
+
+  const cap = w => w ? w.charAt(0).toUpperCase() + w.slice(1) : "";
+  const counts = { paid: 0, trial: 0, expired: 0 };
+
+  let list = rows.map(r => {
+    const paidUntil = r.paid_until || 0;
+    const trialEnds = r.trial_started ? r.trial_started + TRIAL_DAYS * DAY_MS : 0;
+    const expiresAt = Math.max(paidUntil, trialEnds);
+    const plan = paidUntil > now ? "paid" : trialEnds > now ? "trial" : "expired";
+    counts[plan]++;
+    return {
+      plan,
+      device: [cap(r.manufacturer), r.model].filter(Boolean).join(" "),
+      os: r.os || "",
+      appVersion: r.app_version || "",
+      phoneRaw: r.phone || "",
+      phone: r.phone ? (full ? r.phone : maskPhone(r.phone)) : "",
+      expiresAt,
+      daysLeft: Math.max(0, Math.ceil((expiresAt - now) / DAY_MS)),
+      lastPaid: r.last_paid || 0,
+      paidCount: r.paid_count,
+      firstSeen: r.first_seen || r.trial_started || 0,
+      lastSeen: r.last_seen || 0,
+      idTail: r.device_id.slice(-6),
+      idFull: r.device_id
+    };
+  });
+
+  const total = list.length;
+  if (planFilter) list = list.filter(x => x.plan === planFilter);
+  if (search) {
+    list = list.filter(x =>
+      (x.device + " " + x.idFull).toLowerCase().includes(search) ||
+      (digits.length >= 3 && x.phoneRaw.includes(digits)));
+  }
+
+  res.json({
+    total, counts,
+    devices: list.slice(0, 200).map(({ phoneRaw, idFull, ...rest }) => rest)
+  });
 });
 
 app.listen(process.env.PORT || 3000, () => console.log("PayTrack backend up"));
