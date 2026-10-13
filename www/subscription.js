@@ -6,7 +6,7 @@
     doesn't lock a paying user out.
 */
 
-const API = "https://paytrack-app.onrender.com";   // must be HTTPS
+const API = "https://your-server.example.com";   // must be HTTPS
 const SUB_CACHE_KEY = "paytrack_sub_expiry";
 const OFFLINE_GRACE_MS = 3 * 24 * 60 * 60 * 1000; // 3 days
 
@@ -117,12 +117,43 @@ function showSubStatus(s) {
     });
 }
 
+// Once a day, tell the server which phone model this is (no name, IMEI or phone number).
+async function reportDevice() {
+    try {
+        const last = Number(localStorage.getItem("paytrack_dev_reported")) || 0;
+        if (Date.now() - last < 24 * 60 * 60 * 1000) return;
+
+        const P = window.Capacitor && window.Capacitor.Plugins;
+        if (!P || !P.Device || typeof P.Device.getInfo !== "function") return;   // native app only
+
+        const info = await P.Device.getInfo();
+        let appVersion = "";
+        if (P.App && typeof P.App.getInfo === "function") {
+            appVersion = (await P.App.getInfo()).version || "";
+        }
+
+        const r = await fetch(API + "/api/device", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                deviceId: await ensureDeviceId(),
+                manufacturer: info.manufacturer || "",
+                model: info.model || "",
+                os: ((info.operatingSystem || "") + " " + (info.osVersion || "")).trim(),
+                appVersion: appVersion
+            })
+        });
+        if (r.ok) localStorage.setItem("paytrack_dev_reported", String(Date.now()));
+    } catch (e) {}
+}
+
 async function enforceSubscription() {
     try {
         const s = await fetchSubscription();
         console.log("PayTrack subscription:", JSON.stringify(s), "device:", DEVICE_ID);
         localStorage.setItem(SUB_CACHE_KEY, String(s.expiresAt || 0));
         showSubStatus(s);
+        reportDevice();
         if (s.active) { closePaywall(); return true; }
 
         const left = s.trialUsed
