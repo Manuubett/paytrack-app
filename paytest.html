@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>PayTrack payment test</title>
+<style>
+:root { --bg:#f2f5f7; --panel:#fff; --ink:#15232d; --mute:#5d6d78; --line:#dde4e9; --ok:#0f7d3a; --warn:#a86a00; --bad:#b3321f; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg:#10181e; --panel:#18232b; --ink:#e7eef2; --mute:#8fa1ad; --line:#2a3944; --ok:#4cc57c; --warn:#e2a23b; --bad:#ef7a68; }
+}
+* { box-sizing:border-box; }
+html { background:var(--bg); color:var(--ink); font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+body { margin:0; padding:16px; max-width:640px; margin-inline:auto; }
+h1 { font-size:20px; margin:0 0 4px; }
+h2 { font-size:15px; margin:0 0 10px; }
+.sub { color:var(--mute); margin:0 0 14px; }
+.panel { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:14px; }
+label { display:block; font-size:13px; color:var(--mute); margin:8px 0 4px; }
+input { width:100%; padding:11px; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:inherit; font:inherit; }
+button { font:inherit; border:1px solid var(--line); background:var(--panel); color:inherit; border-radius:8px; padding:10px 14px; cursor:pointer; }
+button.primary { background:var(--ok); border-color:var(--ok); color:#fff; font-weight:600; width:100%; margin-top:12px; }
+button:disabled { opacity:.55; cursor:not-allowed; }
+button:focus-visible, input:focus-visible { outline:2px solid var(--ok); outline-offset:2px; }
+.check { display:flex; gap:8px; padding:6px 0; border-bottom:1px solid var(--line); align-items:flex-start; }
+.check:last-child { border-bottom:0; }
+.check .dot { flex:0 0 auto; font-weight:700; width:1.2em; }
+.check.ok .dot { color:var(--ok); } .check.bad .dot { color:var(--bad); } .check.warn .dot { color:var(--warn); }
+.check small { display:block; color:var(--mute); overflow-wrap:anywhere; }
+.banner { border:1px solid var(--warn); border-radius:8px; padding:10px 12px; margin-bottom:12px; color:var(--warn); }
+#log { background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:10px; min-height:90px; max-height:340px;
+       overflow:auto; font:12.5px/1.5 ui-monospace,Consolas,monospace; white-space:pre-wrap; overflow-wrap:anywhere; }
+#log .ok { color:var(--ok); } #log .bad { color:var(--bad); } #log .warn { color:var(--warn); }
+.row { display:flex; gap:8px; margin-top:10px; }
+.row button { flex:1; }
+</style>
+</head>
+<body>
+
+<h1>PayTrack payment test</h1>
+<p class="sub">Checks the server and sends a real M-PESA prompt, without using the app.</p>
+
+<section class="panel">
+  <h2>1. Check the server</h2>
+  <label for="token">Admin token</label>
+  <input id="token" type="password" autocomplete="off">
+  <button id="runChecks" class="primary" type="button">Run checks</button>
+  <div id="checks" style="margin-top:10px"></div>
+</section>
+
+<section class="panel">
+  <h2>2. Send an M-PESA prompt</h2>
+  <div id="modeBanner" class="banner" style="display:none"></div>
+  <label for="phone">Phone number</label>
+  <input id="phone" type="tel" inputmode="tel" placeholder="07XXXXXXXX or 011XXXXXXX">
+  <button id="pay" class="primary" type="button">Send prompt for KSh 50</button>
+  <div class="row">
+    <button id="recheck" type="button" disabled>Check result again</button>
+    <button id="copy" type="button">Copy log</button>
+  </div>
+</section>
+
+<section class="panel">
+  <h2>Log</h2>
+  <div id="log" role="log" aria-live="polite"></div>
+</section>
+
+<script>
+const $ = id => document.getElementById(id);
+const TOKEN_KEY = "paytrack_admin_token";
+const DEVICE = "paytest-" + Math.random().toString(36).slice(2, 10);
+let lastCheckout = null;
+let busy = false;
+let prodMode = false;
+
+if (sessionStorage.getItem(TOKEN_KEY)) $("token").value = sessionStorage.getItem(TOKEN_KEY);
+
+function log(msg, cls) {
+  const line = document.createElement("div");
+  if (cls) line.className = cls;
+  line.textContent = new Date().toLocaleTimeString("en-KE", { hour12:false }) + "  " + msg;
+  $("log").appendChild(line);
+  $("log").scrollTop = $("log").scrollHeight;
+}
+
+function check(ok, title, detail) {
+  const div = document.createElement("div");
+  div.className = "check " + (ok === true ? "ok" : ok === false ? "bad" : "warn");
+  const dot = document.createElement("span");
+  dot.className = "dot";
+  dot.textContent = ok === true ? "✓" : ok === false ? "✗" : "!";
+  const body = document.createElement("div");
+  body.textContent = title;
+  if (detail) { const s = document.createElement("small"); s.textContent = detail; body.appendChild(s); }
+  div.appendChild(dot); div.appendChild(body);
+  $("checks").appendChild(div);
+}
+
+const hints = [
+  [/cancel/i,            "The prompt was cancelled on the phone."],
+  [/timeout|unreachable/i, "The phone did not answer in time. Check it has network and the SIM is Safaricom with M-PESA."],
+  [/insufficient/i,      "Not enough M-PESA balance on that number."],
+  [/wrong|pin/i,         "Wrong M-PESA PIN was entered."],
+  [/access token/i,      "Daraja rejected the credentials. Check the consumer key and secret and DARAJA_ENV."],
+  [/phonenumber|msisdn/i,"Daraja did not accept the phone number."],
+  [/initiator|credentials/i, "The shortcode or passkey does not match the credentials. For a till, check DARAJA_TRANSACTION_TYPE and DARAJA_TILL_NUMBER."]
+];
+function hint(text) { const h = hints.find(x => x[0].test(text || "")); return h ? h[1] : ""; }
+
+async function runChecks() {
+  const token = $("token").value.trim();
+  if (!token) { log("Enter the admin token first.", "warn"); return; }
+  sessionStorage.setItem(TOKEN_KEY, token);
+  $("runChecks").disabled = true;
+  $("checks").textContent = "Checking…";
+  try {
+    const r = await fetch("/api/admin/diagnose", { headers: { "x-admin-token": token } });
+    const d = await r.json().catch(() => ({}));
+    $("checks").textContent = "";
+    if (!r.ok) { check(false, "Could not run checks", d.error || ("HTTP " + r.status)); return; }
+
+    prodMode = d.mode === "PRODUCTION";
+    check(prodMode ? null : true, "Mode: " + d.mode,
+          prodMode ? "Live mode. A test prompt charges a real KSh " + d.price + "." : "Sandbox. Real phones may not get a prompt.");
+    check(d.darajaAuth.ok, "Daraja credentials", d.darajaAuth.ok ? "Access token received." : d.darajaAuth.error);
+    check(d.callbackReachable.ok, "Callback URL reaches the server",
+          d.callbackUrl + (d.callbackReachable.ok ? "" : "  (" + (d.callbackReachable.error || "HTTP " + d.callbackReachable.status) + ")"));
+    check(true, "Transaction type: " + d.transactionType, "Shortcode " + d.shortcode + ", pays to " + d.partyB);
+    check(d.databaseOnDisk ? true : false, "Database: " + d.database,
+          d.databaseOnDisk ? "Set through DB_PATH." : "DB_PATH is not set, so data is lost on every deploy.");
+    check(true, "Free trial: " + d.trialDays + " day(s)");
+    if (d.recent.length) {
+      check(true, "Last " + d.recent.length + " attempts",
+            d.recent.map(x => x.status + (x.reason ? " (" + x.reason + ")" : "")).join("; "));
+    }
+    if (prodMode) { $("modeBanner").style.display = ""; $("modeBanner").textContent = "PRODUCTION: this will charge KSh " + d.price + " to the number you enter."; }
+    else $("modeBanner").style.display = "none";
+  } catch (e) {
+    $("checks").textContent = "";
+    check(false, "Could not reach the server", e.message);
+  } finally { $("runChecks").disabled = false; }
+}
+
+async function pollOnce() {
+  const r = await fetch("/api/pay/" + encodeURIComponent(lastCheckout));
+  return r.json();
+}
+
+async function send() {
+  if (busy) return;
+  const phone = $("phone").value.trim();
+  if (!phone) { log("Enter a phone number.", "warn"); return; }
+  if (prodMode && !confirm("This is PRODUCTION and will charge KSh 50 to " + phone + ". Continue?")) return;
+
+  busy = true; $("pay").disabled = true; $("recheck").disabled = true;
+  try {
+    log("Sending request for " + phone + " (test device " + DEVICE + ")…");
+    const r = await fetch("/api/pay", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ deviceId: DEVICE, phone })
+    });
+    const d = await r.json().catch(() => ({}));
+    log("Server answered HTTP " + r.status + ": " + JSON.stringify(d), r.ok ? "" : "bad");
+    if (!r.ok) { const h = hint(d.error); if (h) log("Hint: " + h, "warn"); return; }
+
+    lastCheckout = d.checkoutId;
+    $("recheck").disabled = false;
+    log("Prompt accepted by Safaricom. Enter your M-PESA PIN on the phone now.", "ok");
+
+    for (let i = 1; i <= 45; i++) {
+      await new Promise(res => setTimeout(res, 2000));
+      const s = await pollOnce();
+      if (s.status === "paid") { log("PAID. The callback reached the server and credited the test device.", "ok"); await showSub(); return; }
+      if (s.status === "failed") {
+        log("FAILED: " + (s.reason || "no reason given"), "bad");
+        const h = hint(s.reason); if (h) log("Hint: " + h, "warn");
+        return;
+      }
+      if (i % 5 === 0) log("Still waiting (" + i * 2 + "s)…");
+    }
+    log("No result after 90s. If you got the prompt and paid, the callback is not reaching the server: check the callback line in step 1.", "warn");
+  } catch (e) {
+    log("Error: " + e.message, "bad");
+  } finally { busy = false; $("pay").disabled = false; }
+}
+
+async function showSub() {
+  const r = await fetch("/api/status/" + encodeURIComponent(DEVICE));
+  log("Subscription for the test device: " + JSON.stringify(await r.json()), "ok");
+}
+
+async function recheck() {
+  if (!lastCheckout) return;
+  const s = await pollOnce();
+  log("Payment status now: " + s.status + (s.reason ? " (" + s.reason + ")" : ""), s.status === "paid" ? "ok" : s.status === "failed" ? "bad" : "warn");
+  if (s.status === "paid") showSub();
+}
+
+$("runChecks").addEventListener("click", runChecks);
+$("pay").addEventListener("click", send);
+$("recheck").addEventListener("click", recheck);
+$("copy").addEventListener("click", () => {
+  const text = $("log").innerText;
+  (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(
+    () => log("Log copied."), () => log("Could not copy. Select the text manually.", "warn"));
+});
+</script>
+</body>
+</html>
