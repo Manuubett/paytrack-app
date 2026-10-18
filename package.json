@@ -10,9 +10,5 @@
   "engines": {
     "node": "22.x"
   },
-  "license": "ISC",
-  "dependencies": {
-    "express": "^4.19.2",
-    "firebase-admin": "^13.0.0"
-  }
+  "license": "ISC"
 }
