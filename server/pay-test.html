@@ -127,8 +127,8 @@ async function runChecks() {
     check(d.callbackReachable.ok, "Callback URL reaches the server",
           d.callbackUrl + (d.callbackReachable.ok ? "" : "  (" + (d.callbackReachable.error || "HTTP " + d.callbackReachable.status) + ")"));
     check(true, "Transaction type: " + d.transactionType, "Shortcode " + d.shortcode + ", pays to " + d.partyB);
-    check(d.databaseOnDisk ? true : false, "Database: " + d.database,
-          d.databaseOnDisk ? "Set through DB_PATH." : "DB_PATH is not set, so data is lost on every deploy.");
+    check(d.firestore.ok, "Database (Firebase project " + d.firestore.project + ")",
+          d.firestore.ok ? "Read and write test passed." : d.firestore.error);
     check(true, "Free trial: " + d.trialDays + " day(s)");
     if (d.recent.length) {
       check(true, "Last " + d.recent.length + " attempts",
