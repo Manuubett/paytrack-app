@@ -209,7 +209,8 @@ function renderSummary(s) {
   if (s.stuckPending > 0) {
     stuck.classList.remove("hidden");
     stuck.innerHTML = `<strong>${s.stuckPending} payment${s.stuckPending === 1 ? "" : "s"} pending for over 5 minutes.</strong>
-      The customer may have paid but the callback didn't arrive. Check the M-PESA statement and the server logs.`;
+      The customer may have paid but the callback didn't arrive. The server asks Daraja about these on its own, or you can ask now.
+      <br><button id="recheckBtn" type="button" style="margin-top:8px">Recheck with Daraja</button>`;
   } else stuck.classList.add("hidden");
 
   $("expiring").innerHTML = s.expiring.length
@@ -257,6 +258,18 @@ async function loadDevices() {
   renderDevices(await api("/api/admin/devices?" + p.toString()));
 }
 
+async function recheckPending(btn) {
+  btn.disabled = true; btn.textContent = "Checking…";
+  try {
+    const r = await fetch("/api/admin/recheck", { method: "POST", headers: { "x-admin-token": sessionStorage.getItem(TOKEN_KEY) || "" } });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || "Failed");
+    btn.textContent = "Checked " + d.checked + ", settled " + d.settled;
+    setTimeout(load, 800);
+  } catch (e) { btn.textContent = e.message; btn.disabled = false; }
+}
+$("stuck").addEventListener("click", e => { if (e.target.id === "recheckBtn") recheckPending(e.target); });
+
 async function load() {
   try {
     const [s, p] = await Promise.all([
@@ -282,7 +295,7 @@ async function load() {
 function start() {
   load();
   clearInterval(timer);
-  timer = setInterval(() => { if (document.visibilityState === "visible") load(); }, 60000);
+  timer = setInterval(() => { if (document.visibilityState === "visible") load(); }, 300000);   // every 5 minutes; each load reads from Firestore
 }
 
 $("signIn").addEventListener("click", () => {
