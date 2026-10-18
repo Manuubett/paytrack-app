@@ -1,12 +1,20 @@
-// PAYTRACK BACKEND — Daraja STK Push + SQLite
+// PAYTRACK BACKEND — Daraja STK Push + Firebase (Firestore)
 //
-//   npm i express better-sqlite3
-//   env: DARAJA_CONSUMER_KEY DARAJA_CONSUMER_SECRET DARAJA_SHORTCODE DARAJA_PASSKEY
+//   npm i express firebase-admin
+//   env: FIREBASE_SERVICE_ACCOUNT            (the service account JSON, or the same JSON in base64)
+//        DARAJA_CONSUMER_KEY DARAJA_CONSUMER_SECRET DARAJA_SHORTCODE DARAJA_PASSKEY
 //        DARAJA_CALLBACK_BASE_URL DARAJA_ENV [DARAJA_TRANSACTION_TYPE] [DARAJA_TILL_NUMBER]
-//        [DB_PATH] [PORT]
+//        [ADMIN_TOKEN] [TRIAL_DAYS] [PORT]
+//
+// Firestore collections:
+//   devices/{deviceId}   one document per phone: trial, paid-until, phone, model, last seen
+//   payments/{checkoutId} one document per M-PESA prompt
+//   stats/totals         running revenue counter
 
 const express = require("express");
-const Database = require("better-sqlite3");
+const admin = require("firebase-admin");
+const crypto = require("crypto");
+const path = require("path");
 
 // Env var names match your existing Render setup (instasend-backend)
 const env = process.env;
@@ -26,12 +34,13 @@ const CALLBACK_URL =
   (env.DARAJA_CALLBACK_BASE_URL || "").replace(/\/+$/, "") + "/api/mpesa/callback";
 
 const missing = ["DARAJA_CONSUMER_KEY", "DARAJA_CONSUMER_SECRET", "DARAJA_SHORTCODE",
-  "DARAJA_PASSKEY", "DARAJA_CALLBACK_BASE_URL"].filter(k => !env[k]);
+  "DARAJA_PASSKEY", "DARAJA_CALLBACK_BASE_URL", "FIREBASE_SERVICE_ACCOUNT"].filter(k => !env[k]);
 if (missing.length) {
   console.error("Missing env vars: " + missing.join(", "));
   process.exit(1);
 }
 console.log(`Daraja: ${IS_PROD ? "PRODUCTION" : "sandbox"} | ${TXN_TYPE} | callback ${CALLBACK_URL}`);
+
 const PRICE = 50;
 const DAY_MS = 864e5;
 const PERIOD_DAYS = 30;
@@ -40,87 +49,63 @@ const parsedTrial = parseInt(env.TRIAL_DAYS, 10);
 const TRIAL_DAYS = Number.isFinite(parsedTrial) && parsedTrial >= 0 ? parsedTrial : 14;
 console.log(`Trial: ${TRIAL_DAYS} day(s)`);
 
-/* ---------- database ---------- */
+/* ---------- firebase ---------- */
 
-const DB_FILE = process.env.DB_PATH || "paytrack.db";
-const db = new Database(DB_FILE);
-console.log(`Database: ${DB_FILE}` +
-  (process.env.DB_PATH ? "" : "  (WARNING: DB_PATH not set, data is lost on every restart/deploy)"));
-db.pragma("journal_mode = WAL");
+let serviceAccount;
+try {
+  const raw = env.FIREBASE_SERVICE_ACCOUNT.trim();
+  serviceAccount = JSON.parse(raw.startsWith("{") ? raw : Buffer.from(raw, "base64").toString("utf8"));
+} catch (e) {
+  console.error("FIREBASE_SERVICE_ACCOUNT is not valid JSON (or base64 of the JSON).");
+  process.exit(1);
+}
+admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+const db = admin.firestore();
+db.settings({ ignoreUndefinedProperties: true });
+const FieldValue = admin.firestore.FieldValue;
+console.log(`Firebase project: ${serviceAccount.project_id}`);
 
-db.exec(`
-  CREATE TABLE IF NOT EXISTS subscriptions (
-    device_id  TEXT PRIMARY KEY,
-    expires_at INTEGER NOT NULL
-  );
-  CREATE TABLE IF NOT EXISTS payments (
-    checkout_id TEXT PRIMARY KEY,
-    device_id   TEXT NOT NULL,
-    phone       TEXT NOT NULL,
-    status      TEXT NOT NULL DEFAULT 'pending',   -- pending | paid | failed
-    reason      TEXT,
-    receipt     TEXT UNIQUE,                        -- blocks duplicate credit
-    amount      INTEGER,
-    created_at  INTEGER NOT NULL
-  );
-  CREATE INDEX IF NOT EXISTS idx_payments_device ON payments(device_id);
-  CREATE TABLE IF NOT EXISTS devices (
-    device_id    TEXT PRIMARY KEY,
-    manufacturer TEXT,
-    model        TEXT,
-    os           TEXT,
-    app_version  TEXT,
-    first_seen   INTEGER NOT NULL,
-    last_seen    INTEGER NOT NULL
-  );
-  CREATE TABLE IF NOT EXISTS trials (
-    device_id  TEXT PRIMARY KEY,                    -- one trial per device, ever
-    started_at INTEGER NOT NULL
-  );
-`);
+const DEV = db.collection("devices");
+const PAY = db.collection("payments");
+const STATS = db.collection("stats");
 
-const q = {
-  insertPayment: db.prepare(
-    "INSERT INTO payments (checkout_id, device_id, phone, created_at) VALUES (?,?,?,?)"),
-  getPayment: db.prepare("SELECT * FROM payments WHERE checkout_id = ?"),
-  failPayment: db.prepare(
-    "UPDATE payments SET status='failed', reason=? WHERE checkout_id=? AND status='pending'"),
-  paidPayment: db.prepare(
-    "UPDATE payments SET status='paid', receipt=?, amount=? WHERE checkout_id=? AND status='pending'"),
-  getSub: db.prepare("SELECT expires_at FROM subscriptions WHERE device_id = ?"),
-  upsertDevice: db.prepare(`
-    INSERT INTO devices (device_id, manufacturer, model, os, app_version, first_seen, last_seen)
-    VALUES (?,?,?,?,?,?,?)
-    ON CONFLICT(device_id) DO UPDATE SET manufacturer=excluded.manufacturer, model=excluded.model,
-      os=excluded.os, app_version=excluded.app_version, last_seen=excluded.last_seen`),
-  getTrial: db.prepare("SELECT started_at FROM trials WHERE device_id = ?"),
-  insertTrial: db.prepare("INSERT OR IGNORE INTO trials (device_id, started_at) VALUES (?, ?)"),
-  upsertSub: db.prepare(`
-    INSERT INTO subscriptions (device_id, expires_at) VALUES (?, ?)
-    ON CONFLICT(device_id) DO UPDATE SET expires_at = excluded.expires_at`),
-  recentPending: db.prepare(
-    "SELECT COUNT(*) AS n FROM payments WHERE device_id=? AND status='pending' AND created_at > ?")
-};
-
-// Credit a payment atomically: mark paid + extend expiry (renewals stack)
-const creditPayment = db.transaction((checkoutId, deviceId, receipt, amount) => {
-  const res = q.paidPayment.run(receipt, amount, checkoutId);
-  if (res.changes === 0) return false;                 // duplicate or unknown
-  const cur = q.getSub.get(deviceId)?.expires_at || 0;
-  // Paying during a trial adds 30 days after the trial ends (nothing is lost)
-  const trialStart = q.getTrial.get(deviceId)?.started_at;
-  const trialEnd = trialStart ? trialStart + TRIAL_DAYS * DAY_MS : 0;
-  q.upsertSub.run(deviceId, Math.max(Date.now(), cur, trialEnd) + PERIOD_DAYS * DAY_MS);
-  return true;
-});
-
-/* ---------- daraja helpers ---------- */
+/* ---------- helpers ---------- */
 
 const normalizePhone = p =>
   "254" + String(p).replace(/\D/g, "").replace(/^(254|0)/, "");
 
 const timestamp = () =>
   new Date().toISOString().replace(/[-:T]/g, "").slice(0, 14);
+
+const validDeviceId = id => /^[A-Za-z0-9_-]{8,64}$/.test(String(id));
+const validCheckoutId = id => /^[A-Za-z0-9_-]{6,100}$/.test(String(id));
+const maskPhone = p => String(p).replace(/^(\d{5})\d+(\d{3})$/, "$1****$2");
+const fail = (res, e) => { console.error(e && e.message); res.status(500).json({ error: "Server error" }); };
+
+const trialEndsOf = d => (d && d.trialStartedAt ? d.trialStartedAt + TRIAL_DAYS * DAY_MS : 0);
+
+function planOf(d, now) {
+  const paidUntil = (d && d.paidUntil) || 0;
+  const trialEnds = trialEndsOf(d);
+  const expiresAt = Math.max(paidUntil, trialEnds);
+  return {
+    paidUntil, trialEnds, expiresAt,
+    plan: paidUntil > now ? "paid" : trialEnds > now ? "trial" : "expired"
+  };
+}
+
+// Small in-memory cache so the admin pages don't read Firestore on every refresh
+const cache = new Map();
+async function cached(key, ttlMs, fn) {
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.at < ttlMs) return hit.value;
+  const value = await fn();
+  cache.set(key, { at: Date.now(), value });
+  if (cache.size > 200) cache.clear();
+  return value;
+}
+
+/* ---------- daraja ---------- */
 
 let tokenCache = { value: null, exp: 0 };
 async function getToken() {
@@ -134,6 +119,108 @@ async function getToken() {
   }
   tokenCache = { value: d.access_token, exp: Date.now() + 50 * 60 * 1000 };
   return d.access_token;
+}
+
+// Ask Daraja whether this prompt really succeeded. This is the source of truth:
+// the callback and the app's polling only trigger this check, they are never trusted alone.
+async function stkQuery(checkoutId) {
+  try {
+    const ts = timestamp();
+    const r = await fetch(`${BASE}/mpesa/stkpushquery/v1/query`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${await getToken()}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        BusinessShortCode: SHORTCODE,
+        Password: Buffer.from(SHORTCODE + PASSKEY + ts).toString("base64"),
+        Timestamp: ts,
+        CheckoutRequestID: checkoutId
+      })
+    });
+    const d = await r.json().catch(() => ({}));
+    if (d.ResultCode !== undefined && d.ResultCode !== null) {
+      if (String(d.ResultCode) === "0") return { state: "paid" };
+      return { state: "failed", reason: d.ResultDesc || ("Code " + d.ResultCode) };
+    }
+    return { state: "pending" };          // still being processed, or Daraja had a hiccup
+  } catch (e) {
+    console.error("stkQuery:", e.message);
+    return { state: "pending" };
+  }
+}
+
+/* ---------- payments ---------- */
+
+// Mark paid and extend the subscription, once only (the transaction checks the status)
+const creditPayment = (checkoutId, receiptText) => db.runTransaction(async tx => {
+  const pRef = PAY.doc(checkoutId);
+  const pSnap = await tx.get(pRef);
+  if (!pSnap.exists || pSnap.data().status !== "pending") return false;
+
+  const p = pSnap.data();
+  const dRef = DEV.doc(p.deviceId);
+  const dSnap = await tx.get(dRef);
+  const prev = dSnap.exists ? dSnap.data() : {};
+
+  const now = Date.now();
+  const trialEnds = trialEndsOf(prev);
+  // Paying during a trial adds 30 days after the trial ends (nothing is lost)
+  const paidUntil = Math.max(now, prev.paidUntil || 0, trialEnds) + PERIOD_DAYS * DAY_MS;
+
+  tx.update(pRef, { status: "paid", receipt: receiptText || null, amount: PRICE, paidAt: now });
+  tx.set(dRef, {
+    paidUntil,
+    expiresAt: Math.max(paidUntil, trialEnds),
+    lastPaidAt: now,
+    paidCount: (prev.paidCount || 0) + 1,
+    phone: p.phone,
+    firstSeen: prev.firstSeen || now,
+    lastSeen: prev.lastSeen || now,
+    trialStartedAt: prev.trialStartedAt === undefined ? 0 : prev.trialStartedAt
+  }, { merge: true });
+  tx.set(STATS.doc("totals"), {
+    revenue: FieldValue.increment(PRICE),
+    count: FieldValue.increment(1)
+  }, { merge: true });
+  return true;
+});
+
+const failPayment = (checkoutId, reason) => db.runTransaction(async tx => {
+  const ref = PAY.doc(checkoutId);
+  const snap = await tx.get(ref);
+  if (snap.exists && snap.data().status === "pending") {
+    tx.update(ref, { status: "failed", reason: String(reason || "Payment not completed").slice(0, 200) });
+  }
+});
+
+const lastQuery = new Map();
+
+// Verify one pending payment with Daraja and settle it. Returns the payment's status.
+async function settleCheckout(checkoutId, cb, force) {
+  const ref = PAY.doc(checkoutId);
+  const snap = await ref.get();
+  if (!snap.exists) return "unknown";
+  if (snap.data().status !== "pending") return snap.data().status;
+
+  const now = Date.now();
+  if (!force && now - (lastQuery.get(checkoutId) || 0) < 8000) return "pending";
+  lastQuery.set(checkoutId, now);
+  if (lastQuery.size > 2000) lastQuery.clear();
+
+  const v = await stkQuery(checkoutId);
+
+  if (v.state === "paid") {
+    // Receipt text from the callback is only a label (never used to decide anything)
+    const items = (cb && cb.CallbackMetadata && cb.CallbackMetadata.Item) || [];
+    const rec = items.find(i => i.Name === "MpesaReceiptNumber");
+    const receipt = rec && /^[A-Z0-9]{8,12}$/.test(String(rec.Value)) ? String(rec.Value) : null;
+    await creditPayment(checkoutId, receipt);
+    return "paid";
+  }
+  if (v.state === "failed") {
+    await failPayment(checkoutId, v.reason);
+    return "failed";
+  }
+  return "pending";
 }
 
 /* ---------- app ---------- */
@@ -161,19 +248,30 @@ app.use((req, res, next) => {
   next();
 });
 
+// Abuse guard: max 3 prompts per device in 5 minutes
+const payAttempts = new Map();
+function tooManyPrompts(deviceId) {
+  const now = Date.now();
+  if (payAttempts.size > 5000) payAttempts.clear();
+  const recent = (payAttempts.get(deviceId) || []).filter(t => now - t < 5 * 60 * 1000);
+  const blocked = recent.length >= 3;
+  if (!blocked) recent.push(now);
+  payAttempts.set(deviceId, recent);
+  return blocked;
+}
+
 // 1) Start a payment
 app.post("/api/pay", async (req, res) => {
   try {
     const { deviceId, phone } = req.body || {};
-    if (!deviceId || !phone || String(deviceId).length > 100)
+    if (!validDeviceId(deviceId) || !phone)
       return res.status(400).json({ error: "Missing data" });
 
     const msisdn = normalizePhone(phone);
     if (!/^254[71]\d{8}$/.test(msisdn))
       return res.status(400).json({ error: "Invalid phone number" });
 
-    // Basic abuse guard: max 3 pending prompts per device in 5 minutes
-    if (q.recentPending.get(deviceId, Date.now() - 5 * 60 * 1000).n >= 3)
+    if (tooManyPrompts(deviceId))
       return res.status(429).json({ error: "Please wait a few minutes and try again" });
 
     const ts = timestamp();
@@ -197,11 +295,14 @@ app.post("/api/pay", async (req, res) => {
         TransactionDesc: "PayTrack monthly"
       })
     });
-    const d = await r.json();
+    const d = await r.json().catch(() => ({}));
     if (d.ResponseCode !== "0")
       return res.status(400).json({ error: d.errorMessage || d.ResponseDescription || "Request rejected" });
 
-    q.insertPayment.run(d.CheckoutRequestID, deviceId, msisdn, Date.now());
+    await PAY.doc(d.CheckoutRequestID).set({
+      deviceId, phone: msisdn, status: "pending", reason: null,
+      receipt: null, amount: null, createdAt: Date.now()
+    });
     res.json({ checkoutId: d.CheckoutRequestID });
 
   } catch (e) {
@@ -210,84 +311,101 @@ app.post("/api/pay", async (req, res) => {
   }
 });
 
-// 2) Safaricom callback
+// 2) Safaricom callback: acknowledge, then verify with Daraja before crediting anything
 app.post("/api/mpesa/callback", (req, res) => {
-  res.json({ ResultCode: 0, ResultDesc: "Accepted" });   // ack first
+  res.json({ ResultCode: 0, ResultDesc: "Accepted" });
 
+  const cb = req.body && req.body.Body && req.body.Body.stkCallback;
+  if (!cb || !validCheckoutId(cb.CheckoutRequestID)) return;
+
+  settleCheckout(String(cb.CheckoutRequestID), cb, true)
+    .catch(e => console.error("callback:", e.message));
+});
+
+// 3) Poll one payment (also re-checks with Daraja if the callback has not arrived)
+app.get("/api/pay/:checkoutId", async (req, res) => {
   try {
-    const cb = req.body?.Body?.stkCallback;
-    if (!cb) return;
+    const id = req.params.checkoutId;
+    if (!validCheckoutId(id)) return res.json({ status: "unknown", reason: null });
 
-    const p = q.getPayment.get(cb.CheckoutRequestID);
-    if (!p || p.status !== "pending") return;            // unknown or duplicate
+    let snap = await PAY.doc(id).get();
+    if (!snap.exists) return res.json({ status: "unknown", reason: null });
+    let p = snap.data();
 
-    if (cb.ResultCode !== 0) {
-      q.failPayment.run(cb.ResultDesc || "Payment not completed", cb.CheckoutRequestID);
-      return;
+    if (p.status === "pending" && Date.now() - p.createdAt > 15000) {
+      const now = await settleCheckout(id).catch(() => "pending");
+      if (now !== "pending") p = (await PAY.doc(id).get()).data();
+    }
+    res.json({ status: p.status, reason: p.reason || null });
+  } catch (e) { fail(res, e); }
+});
+
+// 4) Is this device allowed in? (starts the free trial the first time it is seen)
+app.get("/api/status/:deviceId", async (req, res) => {
+  try {
+    const id = req.params.deviceId;
+    if (!validDeviceId(id)) return res.status(400).json({ error: "Bad device id" });
+
+    const ref = DEV.doc(id);
+    const load = () => db.runTransaction(async tx => {
+      const snap = await tx.get(ref);
+      const prev = snap.exists ? snap.data() : {};
+      if (prev.trialStartedAt !== undefined) return prev;
+
+      const now = Date.now();
+      const base = {
+        trialStartedAt: TRIAL_DAYS > 0 ? now : 0,
+        paidUntil: prev.paidUntil || 0,
+        firstSeen: prev.firstSeen || now,
+        lastSeen: prev.lastSeen || now
+      };
+      base.expiresAt = Math.max(base.paidUntil, base.trialStartedAt ? base.trialStartedAt + TRIAL_DAYS * DAY_MS : 0);
+      tx.set(ref, base, { merge: true });
+      return { ...prev, ...base };
+    });
+
+    let d = await load();
+    let a = planOf(d, Date.now());
+
+    // Not active: maybe they paid and the callback never arrived. Ask Daraja about pending prompts.
+    if (a.plan === "expired") {
+      const pend = await PAY.where("deviceId", "==", id).where("status", "==", "pending").limit(3).get();
+      if (!pend.empty) {
+        await Promise.all(pend.docs.map(x => settleCheckout(x.id).catch(() => "pending")));
+        d = (await ref.get()).data() || d;
+        a = planOf(d, Date.now());
+      }
     }
 
-    const items = Object.fromEntries(
-      (cb.CallbackMetadata?.Item || []).map(i => [i.Name, i.Value]));
-
-    if (Number(items.Amount) < PRICE || !items.MpesaReceiptNumber) {
-      q.failPayment.run("Amount mismatch", cb.CheckoutRequestID);
-      return;
-    }
-
-    creditPayment(cb.CheckoutRequestID, p.device_id,
-                  String(items.MpesaReceiptNumber), Number(items.Amount));
-
-  } catch (e) {
-    console.error("callback:", e.message);
-  }
+    res.json({
+      active: a.expiresAt > Date.now(),
+      expiresAt: a.expiresAt,
+      plan: a.plan === "expired" ? "none" : a.plan,
+      trialUsed: TRIAL_DAYS > 0
+    });
+  } catch (e) { fail(res, e); }
 });
 
-// 3) Poll one payment
-app.get("/api/pay/:checkoutId", (req, res) => {
-  const p = q.getPayment.get(req.params.checkoutId);
-  res.json({ status: p?.status || "unknown", reason: p?.reason || null });
+// 5) The app reports basic device info once a day (model only; no name, IMEI or number)
+app.post("/api/device", async (req, res) => {
+  try {
+    const b = req.body || {};
+    if (!validDeviceId(b.deviceId)) return res.status(400).json({ error: "Bad device id" });
+    const clip = (v, n) => String(v || "").replace(/[\u0000-\u001f<>]/g, "").trim().slice(0, n);
+    const now = Date.now();
+    await DEV.doc(b.deviceId).set({
+      manufacturer: clip(b.manufacturer, 40),
+      model: clip(b.model, 60),
+      os: clip(b.os, 40),
+      appVersion: clip(b.appVersion, 20),
+      lastSeen: now
+    }, { merge: true });
+    res.json({ ok: true });
+  } catch (e) { fail(res, e); }
 });
 
-// 4) Is this device subscribed?
-const validDeviceId = id => /^[A-Za-z0-9_-]{8,64}$/.test(String(id));
+/* ---------- admin ---------- */
 
-app.get("/api/status/:deviceId", (req, res) => {
-  const id = req.params.deviceId;
-  if (!validDeviceId(id)) return res.status(400).json({ error: "Bad device id" });
-
-  const now = Date.now();
-  let trial = q.getTrial.get(id);
-  if (!trial && TRIAL_DAYS > 0) {            // first time we see this device: start its trial
-    q.insertTrial.run(id, now);
-    trial = { started_at: now };
-  }
-  const paidUntil = q.getSub.get(id)?.expires_at || 0;
-  const trialEnds = trial ? trial.started_at + TRIAL_DAYS * DAY_MS : 0;
-  const expiresAt = Math.max(paidUntil, trialEnds);
-
-  res.json({
-    active: expiresAt > now,
-    expiresAt,
-    plan: paidUntil > now ? "paid" : trialEnds > now ? "trial" : "none",
-    trialUsed: !!trial
-  });
-});
-
-// The app reports basic device info once a day (model only; no name, IMEI or number)
-app.post("/api/device", (req, res) => {
-  const b = req.body || {};
-  if (!validDeviceId(b.deviceId)) return res.status(400).json({ error: "Bad device id" });
-  const clip = (v, n) => String(v || "").replace(/[\u0000-\u001f<>]/g, "").trim().slice(0, n);
-  const now = Date.now();
-  q.upsertDevice.run(b.deviceId, clip(b.manufacturer, 40), clip(b.model, 60),
-                     clip(b.os, 40), clip(b.appVersion, 20), now, now);
-  res.json({ ok: true });
-});
-
-/* ---------- admin dashboard ---------- */
-
-const crypto = require("crypto");
-const path = require("path");
 const ADMIN_TOKEN = env.ADMIN_TOKEN || "";
 const EAT = 3 * 3600 * 1000;                 // Kenya is UTC+3
 const authFails = new Map();                 // ip -> { n, reset }
@@ -309,145 +427,179 @@ function adminAuth(req, res, next) {
   next();
 }
 
-const maskPhone = p => String(p).replace(/^(\d{5})\d+(\d{3})$/, "$1****$2");
+const eatDayStart = now => Math.floor((now + EAT) / DAY_MS) * DAY_MS - EAT;
+const eatMonthStart = now => {
+  const d = new Date(now + EAT);
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1) - EAT;
+};
+const countOf = async query => (await query.count().get()).data().count;
+
+// Payments from the last ~month, read once and shared by the summary and the list
+const recentPayments = () => cached("recentPayments", 2 * 60 * 1000, async () => {
+  const now = Date.now();
+  const since = Math.min(eatMonthStart(now), eatDayStart(now) - 29 * DAY_MS);
+  const snap = await PAY.where("createdAt", ">=", since).orderBy("createdAt", "desc").limit(3000).get();
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+});
 
 app.get("/admin", (req, res) => {
   res.set("Cache-Control", "no-store");
   res.sendFile(path.join(__dirname, "admin.html"));
 });
 
-app.get("/api/admin/summary", adminAuth, (req, res) => {
-  const now = Date.now();
-  const dayStart = Math.floor((now + EAT) / DAY_MS) * DAY_MS - EAT;   // midnight EAT today
-  const d = new Date(now + EAT);
-  const monthStart = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1) - EAT;
+app.get("/api/admin/summary", adminAuth, async (req, res) => {
+  try {
+    res.json(await cached("summary", 2 * 60 * 1000, async () => {
+      const now = Date.now();
+      const dayStart = eatDayStart(now);
+      const monthStart = eatMonthStart(now);
+      const soon = now + 5 * DAY_MS;
+      const pays = await recentPayments();
+      const paid = pays.filter(p => p.status === "paid");
 
-  const sum = since => db.prepare(
-    "SELECT COALESCE(SUM(amount),0) AS amount, COUNT(*) AS count FROM payments WHERE status='paid' AND created_at>=?"
-  ).get(since);
+      const sum = since => {
+        const rows = paid.filter(p => p.createdAt >= since);
+        return { amount: rows.reduce((s, p) => s + (p.amount || 0), 0), count: rows.length };
+      };
 
-  const since30 = dayStart - 29 * DAY_MS;
-  const byDay = Object.fromEntries(db.prepare(`
-    SELECT CAST((created_at + ?) / 86400000 AS INTEGER) AS d, SUM(amount) AS amount, COUNT(*) AS count
-    FROM payments WHERE status='paid' AND created_at>=? GROUP BY d`
-  ).all(EAT, since30).map(r => [r.d, r]));
+      const totals = (await STATS.doc("totals").get()).data() || {};
 
-  const series = [];
-  for (let i = 0; i < 30; i++) {
-    const t = since30 + i * DAY_MS;
-    const r = byDay[Math.floor((t + EAT) / DAY_MS)];
-    series.push({
-      day: new Date(t + EAT).toISOString().slice(0, 10),
-      amount: r?.amount || 0,
-      count: r?.count || 0
-    });
-  }
+      const since30 = dayStart - 29 * DAY_MS;
+      const series = [];
+      for (let i = 0; i < 30; i++) {
+        const t = since30 + i * DAY_MS;
+        const rows = paid.filter(p => p.createdAt >= t && p.createdAt < t + DAY_MS);
+        series.push({
+          day: new Date(t + EAT).toISOString().slice(0, 10),
+          amount: rows.reduce((s, p) => s + (p.amount || 0), 0),
+          count: rows.length
+        });
+      }
 
-  const status = Object.fromEntries(
-    db.prepare("SELECT status, COUNT(*) AS n FROM payments WHERE created_at>=? GROUP BY status")
-      .all(since30).map(r => [r.status, r.n]));
+      const last30 = { paid: 0, failed: 0, pending: 0 };
+      pays.filter(p => p.createdAt >= since30).forEach(p => { if (last30[p.status] !== undefined) last30[p.status]++; });
 
-  const count = (sql, ...a) => db.prepare(sql).get(...a).n;
-  const soon = now + 5 * DAY_MS;
+      const expiringSnap = await DEV.where("paidUntil", ">", now).where("paidUntil", "<=", soon)
+        .orderBy("paidUntil").limit(10).get();
 
-  res.json({
-    revenue: { today: sum(dayStart), week: sum(dayStart - 6 * DAY_MS), month: sum(monthStart), all: sum(0) },
-    subscribers: {
-      active: count("SELECT COUNT(*) AS n FROM subscriptions WHERE expires_at>?", now),
-      expiringSoon: count("SELECT COUNT(*) AS n FROM subscriptions WHERE expires_at>? AND expires_at<=?", now, soon),
-      lapsed: count("SELECT COUNT(*) AS n FROM subscriptions WHERE expires_at<=?", now)
-    },
-    last30: { paid: status.paid || 0, failed: status.failed || 0, pending: status.pending || 0 },
-    stuckPending: count("SELECT COUNT(*) AS n FROM payments WHERE status='pending' AND created_at<?", now - 5 * 60 * 1000),
-    expiring: db.prepare(`
-      SELECT s.expires_at AS expiresAt,
-        (SELECT phone FROM payments p WHERE p.device_id=s.device_id AND p.status='paid'
-         ORDER BY created_at DESC LIMIT 1) AS phone
-      FROM subscriptions s WHERE s.expires_at>? AND s.expires_at<=? ORDER BY s.expires_at LIMIT 10`
-    ).all(now, soon).map(r => ({ expiresAt: r.expiresAt, phone: r.phone ? maskPhone(r.phone) : null })),
-    series,
-    price: PRICE,
-    serverTime: now
-  });
+      return {
+        revenue: {
+          today: sum(dayStart), week: sum(dayStart - 6 * DAY_MS), month: sum(monthStart),
+          all: { amount: totals.revenue || 0, count: totals.count || 0 }
+        },
+        subscribers: {
+          active: await countOf(DEV.where("paidUntil", ">", now)),
+          expiringSoon: await countOf(DEV.where("paidUntil", ">", now).where("paidUntil", "<=", soon)),
+          lapsed: await countOf(DEV.where("paidUntil", ">", 0).where("paidUntil", "<=", now))
+        },
+        last30,
+        stuckPending: pays.filter(p => p.status === "pending" && p.createdAt < now - 5 * 60 * 1000).length,
+        expiring: expiringSnap.docs.map(d => ({
+          expiresAt: d.data().paidUntil,
+          phone: d.data().phone ? maskPhone(d.data().phone) : null
+        })),
+        series,
+        price: PRICE,
+        serverTime: now
+      };
+    }));
+  } catch (e) { fail(res, e); }
 });
 
-app.get("/api/admin/payments", adminAuth, (req, res) => {
-  const st = ["paid", "pending", "failed"].includes(req.query.status) ? req.query.status : null;
-  const limit = Math.min(Number(req.query.limit) || 50, 200);
-  const rows = db.prepare(`
-    SELECT checkout_id, phone, status, reason, receipt, amount, created_at
-    FROM payments ${st ? "WHERE status=?" : ""} ORDER BY created_at DESC LIMIT ?`
-  ).all(...(st ? [st, limit] : [limit]));
-  res.json(rows.map(r => ({
-    id: r.checkout_id.slice(-8),
-    phone: maskPhone(r.phone),
-    status: r.status,
-    reason: r.reason,
-    receipt: r.receipt,
-    amount: r.amount,
-    at: r.created_at
-  })));
+app.get("/api/admin/payments", adminAuth, async (req, res) => {
+  try {
+    const st = ["paid", "pending", "failed"].includes(req.query.status) ? req.query.status : null;
+    const limit = Math.min(Number(req.query.limit) || 50, 200);
+    const rows = (await recentPayments()).filter(p => !st || p.status === st).slice(0, limit);
+    res.json(rows.map(r => ({
+      id: r.id.slice(-8),
+      phone: maskPhone(r.phone),
+      status: r.status,
+      reason: r.reason || null,
+      receipt: r.receipt || null,
+      amount: r.amount || null,
+      at: r.createdAt
+    })));
+  } catch (e) { fail(res, e); }
 });
 
-app.get("/api/admin/devices", adminAuth, (req, res) => {
-  const now = Date.now();
-  const full = req.query.full === "1";
-  const search = String(req.query.q || "").trim().toLowerCase();
-  const digits = search.replace(/\D/g, "").replace(/^0/, "254");
-  const planFilter = ["paid", "trial", "expired"].includes(req.query.plan) ? req.query.plan : "";
+app.get("/api/admin/devices", adminAuth, async (req, res) => {
+  try {
+    const full = req.query.full === "1";
+    const rawSearch = String(req.query.q || "").trim();
+    const search = rawSearch.toLowerCase();
+    const digits = search.replace(/\D/g, "").replace(/^0/, "254");
+    const phoneSearch = /^[\d\s+]+$/.test(rawSearch) && digits.length >= 9;
+    const planFilter = ["paid", "trial", "expired"].includes(req.query.plan) ? req.query.plan : "";
 
-  const rows = db.prepare(`
-    SELECT b.device_id, d.manufacturer, d.model, d.os, d.app_version, d.first_seen, d.last_seen,
-           t.started_at AS trial_started, s.expires_at AS paid_until,
-           (SELECT phone FROM payments p WHERE p.device_id=b.device_id ORDER BY p.created_at DESC LIMIT 1) AS phone,
-           (SELECT COUNT(*) FROM payments p WHERE p.device_id=b.device_id AND p.status='paid') AS paid_count,
-           (SELECT MAX(p.created_at) FROM payments p WHERE p.device_id=b.device_id AND p.status='paid') AS last_paid
-    FROM (SELECT device_id FROM trials UNION SELECT device_id FROM subscriptions UNION SELECT device_id FROM devices) b
-    LEFT JOIN devices d ON d.device_id = b.device_id
-    LEFT JOIN trials t ON t.device_id = b.device_id
-    LEFT JOIN subscriptions s ON s.device_id = b.device_id
-    ORDER BY COALESCE(d.last_seen, t.started_at, s.expires_at, 0) DESC
-    LIMIT 2000`).all();
+    res.json(await cached(`devices:${planFilter}:${rawSearch}:${full}`, 60 * 1000, async () => {
+      const now = Date.now();
 
-  const cap = w => w ? w.charAt(0).toUpperCase() + w.slice(1) : "";
-  const counts = { paid: 0, trial: 0, expired: 0 };
+      const counts = await cached("deviceCounts", 2 * 60 * 1000, async () => {
+        const total = await countOf(DEV);
+        const active = await countOf(DEV.where("expiresAt", ">", now));
+        const paid = await countOf(DEV.where("paidUntil", ">", now));
+        return { total, counts: { paid, trial: Math.max(0, active - paid), expired: Math.max(0, total - active) } };
+      });
 
-  let list = rows.map(r => {
-    const paidUntil = r.paid_until || 0;
-    const trialEnds = r.trial_started ? r.trial_started + TRIAL_DAYS * DAY_MS : 0;
-    const expiresAt = Math.max(paidUntil, trialEnds);
-    const plan = paidUntil > now ? "paid" : trialEnds > now ? "trial" : "expired";
-    counts[plan]++;
-    return {
-      plan,
-      device: [cap(r.manufacturer), r.model].filter(Boolean).join(" "),
-      os: r.os || "",
-      appVersion: r.app_version || "",
-      phoneRaw: r.phone || "",
-      phone: r.phone ? (full ? r.phone : maskPhone(r.phone)) : "",
-      expiresAt,
-      daysLeft: Math.max(0, Math.ceil((expiresAt - now) / DAY_MS)),
-      lastPaid: r.last_paid || 0,
-      paidCount: r.paid_count,
-      firstSeen: r.first_seen || r.trial_started || 0,
-      lastSeen: r.last_seen || 0,
-      idTail: r.device_id.slice(-6),
-      idFull: r.device_id
-    };
-  });
+      let docs;
+      if (phoneSearch) {
+        docs = (await DEV.where("phone", "==", digits).limit(20).get()).docs;
+      } else if (validDeviceId(rawSearch) && (await DEV.doc(rawSearch).get()).exists) {
+        docs = [await DEV.doc(rawSearch).get()];
+      } else {
+        let query;
+        if (planFilter === "paid") query = DEV.where("paidUntil", ">", now).orderBy("paidUntil", "desc");
+        else if (planFilter === "expired") query = DEV.where("expiresAt", "<=", now).orderBy("expiresAt", "desc");
+        else if (planFilter === "trial") query = DEV.where("expiresAt", ">", now).orderBy("expiresAt", "desc");
+        else query = DEV.orderBy("lastSeen", "desc");
+        docs = (await query.limit(300).get()).docs;
+      }
 
-  const total = list.length;
-  if (planFilter) list = list.filter(x => x.plan === planFilter);
-  if (search) {
-    list = list.filter(x =>
-      (x.device + " " + x.idFull).toLowerCase().includes(search) ||
-      (digits.length >= 3 && x.phoneRaw.includes(digits)));
-  }
+      const cap = w => (w ? w.charAt(0).toUpperCase() + w.slice(1) : "");
+      let list = docs.map(snap => {
+        const r = snap.data();
+        const a = planOf(r, now);
+        return {
+          plan: a.plan,
+          device: [cap(r.manufacturer), r.model].filter(Boolean).join(" "),
+          os: r.os || "",
+          appVersion: r.appVersion || "",
+          phone: r.phone ? (full ? r.phone : maskPhone(r.phone)) : "",
+          expiresAt: a.expiresAt,
+          daysLeft: Math.max(0, Math.ceil((a.expiresAt - now) / DAY_MS)),
+          lastPaid: r.lastPaidAt || 0,
+          paidCount: r.paidCount || 0,
+          firstSeen: r.firstSeen || r.trialStartedAt || 0,
+          lastSeen: r.lastSeen || 0,
+          idTail: snap.id.slice(-6),
+          _id: snap.id
+        };
+      });
 
-  res.json({
-    total, counts,
-    devices: list.slice(0, 200).map(({ phoneRaw, idFull, ...rest }) => rest)
-  });
+      if (planFilter) list = list.filter(x => x.plan === planFilter);
+      if (search && !phoneSearch) {
+        list = list.filter(x => (x.device + " " + x._id).toLowerCase().includes(search));
+      }
+
+      return { total: counts.total, counts: counts.counts, devices: list.slice(0, 200).map(({ _id, ...rest }) => rest) };
+    }));
+  } catch (e) { fail(res, e); }
+});
+
+// Re-check every payment that has been pending for over a minute (missed callbacks)
+app.post("/api/admin/recheck", adminAuth, async (req, res) => {
+  try {
+    const snap = await PAY.where("status", "==", "pending").limit(30).get();
+    let settled = 0;
+    for (const d of snap.docs) {
+      if (Date.now() - d.data().createdAt < 60 * 1000) continue;
+      const st = await settleCheckout(d.id, null, true).catch(() => "pending");
+      if (st !== "pending") settled++;
+    }
+    cache.clear();
+    res.json({ checked: snap.size, settled });
+  } catch (e) { fail(res, e); }
 });
 
 /* ---------- payment test page + diagnostics ---------- */
@@ -466,12 +618,19 @@ app.get("/api/admin/diagnose", adminAuth, async (req, res) => {
     partyB: keep3(PARTY_B),
     callbackUrl: CALLBACK_URL,
     trialDays: TRIAL_DAYS,
-    price: PRICE,
-    database: DB_FILE,
-    databaseOnDisk: !!process.env.DB_PATH
+    price: PRICE
   };
 
-  // 1) can we get a Daraja access token?
+  // 1) can we read and write Firestore?
+  try {
+    await STATS.doc("healthcheck").set({ at: Date.now() });
+    await STATS.doc("healthcheck").get();
+    out.firestore = { ok: true, project: serviceAccount.project_id };
+  } catch (e) {
+    out.firestore = { ok: false, project: serviceAccount.project_id, error: e.message };
+  }
+
+  // 2) can we get a Daraja access token?
   try {
     tokenCache = { value: null, exp: 0 };
     await getToken();
@@ -480,7 +639,7 @@ app.get("/api/admin/diagnose", adminAuth, async (req, res) => {
     out.darajaAuth = { ok: false, error: e.message };
   }
 
-  // 2) does the public callback URL reach this server?
+  // 3) does the public callback URL reach this server?
   try {
     const ctl = new AbortController();
     const timer = setTimeout(() => ctl.abort(), 10000);
@@ -497,10 +656,14 @@ app.get("/api/admin/diagnose", adminAuth, async (req, res) => {
     out.callbackReachable = { ok: false, error: e.name === "AbortError" ? "Timed out" : e.message };
   }
 
-  // 3) the last few payment attempts
-  out.recent = db.prepare(
-    "SELECT status, reason, amount, created_at FROM payments ORDER BY created_at DESC LIMIT 5"
-  ).all();
+  // 4) the last few payment attempts
+  try {
+    const snap = await PAY.orderBy("createdAt", "desc").limit(5).get();
+    out.recent = snap.docs.map(d => {
+      const x = d.data();
+      return { status: x.status, reason: x.reason, amount: x.amount, created_at: x.createdAt };
+    });
+  } catch (e) { out.recent = []; }
 
   res.json(out);
 });
