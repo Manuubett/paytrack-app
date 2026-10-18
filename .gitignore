@@ -1,8 +1,8 @@
 node_modules
-dist
-build
+*.db
+*.db-wal
+*.db-shm
 .env
-android/.gradle
-android/app/build
-android/build
-*.log
+# never commit a Firebase service account key
+*serviceAccount*.json
+*firebase-adminsdk*.json
