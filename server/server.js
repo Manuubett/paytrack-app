@@ -128,8 +128,10 @@ async function getToken() {
   const auth = Buffer.from(`${KEY}:${SECRET}`).toString("base64");
   const r = await fetch(`${BASE}/oauth/v1/generate?grant_type=client_credentials`,
     { headers: { Authorization: `Basic ${auth}` } });
-  const d = await r.json();
-  if (!d.access_token) throw new Error("Daraja auth failed");
+  const d = await r.json().catch(() => ({}));
+  if (!d.access_token) {
+    throw new Error("Daraja auth failed (HTTP " + r.status + "). Check the consumer key and secret, and that DARAJA_ENV matches them.");
+  }
   tokenCache = { value: d.access_token, exp: Date.now() + 50 * 60 * 1000 };
   return d.access_token;
 }
@@ -446,6 +448,61 @@ app.get("/api/admin/devices", adminAuth, (req, res) => {
     total, counts,
     devices: list.slice(0, 200).map(({ phoneRaw, idFull, ...rest }) => rest)
   });
+});
+
+/* ---------- payment test page + diagnostics ---------- */
+
+app.get("/paytest", (req, res) => {
+  res.set("Cache-Control", "no-store");
+  res.sendFile(path.join(__dirname, "pay-test.html"));
+});
+
+app.get("/api/admin/diagnose", adminAuth, async (req, res) => {
+  const keep3 = v => String(v || "").replace(/.(?=.{3})/g, "•");
+  const out = {
+    mode: IS_PROD ? "PRODUCTION" : "sandbox",
+    transactionType: TXN_TYPE,
+    shortcode: keep3(SHORTCODE),
+    partyB: keep3(PARTY_B),
+    callbackUrl: CALLBACK_URL,
+    trialDays: TRIAL_DAYS,
+    price: PRICE,
+    database: DB_FILE,
+    databaseOnDisk: !!process.env.DB_PATH
+  };
+
+  // 1) can we get a Daraja access token?
+  try {
+    tokenCache = { value: null, exp: 0 };
+    await getToken();
+    out.darajaAuth = { ok: true };
+  } catch (e) {
+    out.darajaAuth = { ok: false, error: e.message };
+  }
+
+  // 2) does the public callback URL reach this server?
+  try {
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 10000);
+    const r = await fetch(CALLBACK_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+      signal: ctl.signal
+    });
+    clearTimeout(timer);
+    const d = await r.json().catch(() => ({}));
+    out.callbackReachable = { ok: r.ok && d.ResultCode === 0, status: r.status };
+  } catch (e) {
+    out.callbackReachable = { ok: false, error: e.name === "AbortError" ? "Timed out" : e.message };
+  }
+
+  // 3) the last few payment attempts
+  out.recent = db.prepare(
+    "SELECT status, reason, amount, created_at FROM payments ORDER BY created_at DESC LIMIT 5"
+  ).all();
+
+  res.json(out);
 });
 
 app.listen(process.env.PORT || 3000, () => console.log("PayTrack backend up"));
