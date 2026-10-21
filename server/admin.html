@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<title>PayTrack payments</title>
+<title>Payments admin</title>
 <style>
 :root {
   --bg:#f2f5f7; --panel:#fff; --ink:#15232d; --mute:#5d6d78; --line:#dde4e9;
@@ -63,12 +63,16 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline:2px so
 .empty { color:var(--mute); margin:4px 0; }
 .filters { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
 select { padding:7px 10px; border:1px solid var(--line); border-radius:8px; background:var(--panel); }
+.appform label { display:block; font-size:13px; color:var(--mute); margin:8px 0 4px; }
+.appform input[type=text], .appform input[type=number] { width:100%; padding:9px; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:inherit; font:inherit; }
+details summary { cursor:pointer; color:var(--ok, #0f7d3a); font-weight:600; }
+.rows a { color:inherit; }
 </style>
 </head>
 <body>
 
 <section id="login" class="panel login">
-  <h1>PayTrack payments</h1>
+  <h1>Payments admin</h1>
   <label for="token" class="empty">Admin token</label>
   <input id="token" type="password" autocomplete="current-password">
   <button id="signIn" class="primary" style="width:100%">Sign in</button>
@@ -78,10 +82,11 @@ select { padding:7px 10px; border:1px solid var(--line); border-radius:8px; back
 <main id="app" class="hidden">
   <div class="top">
     <div>
-      <h1>PayTrack payments</h1>
+      <h1>Payments admin</h1>
       <small id="updated">Loading…</small>
     </div>
     <div>
+      <select id="appPick" aria-label="Show one app or all apps"><option value="">All apps</option></select>
       <button id="refresh">Refresh</button>
       <button id="signOut">Sign out</button>
     </div>
@@ -119,6 +124,29 @@ select { padding:7px 10px; border:1px solid var(--line); border-radius:8px; back
   <section class="panel">
     <h2>Expiring soon</h2>
     <ul id="expiring" class="rows"></ul>
+  </section>
+
+  <section class="panel">
+    <h2>Apps</h2>
+    <ul id="appsList" class="rows"></ul>
+    <details id="appDetails" style="margin-top:10px">
+      <summary>Add or edit an app</summary>
+      <div class="appform">
+        <label for="aId">App ID (2 to 30 letters, numbers or dashes; the app sends this)</label>
+        <input id="aId" type="text" placeholder="schoolfees" autocapitalize="none">
+        <label for="aName">Name</label>
+        <input id="aName" type="text" placeholder="School Fees" maxlength="40">
+        <label for="aPrice">Price per payment (KSh)</label>
+        <input id="aPrice" type="number" min="1" step="1" placeholder="50">
+        <label for="aTrial">Free trial (days, 0 for none)</label>
+        <input id="aTrial" type="number" min="0" step="1" placeholder="7">
+        <label for="aPeriod">Days of access per payment</label>
+        <input id="aPeriod" type="number" min="1" step="1" placeholder="30">
+        <label><input type="checkbox" id="aActive" checked> Active</label>
+        <button id="aSave" type="button" class="primary" style="width:100%;margin-top:10px">Save app</button>
+        <p id="aMsg" class="empty" role="status"></p>
+      </div>
+    </details>
   </section>
 
   <section class="panel">
@@ -162,8 +190,10 @@ const when = t => new Date(t).toLocaleString("en-KE", { day:"numeric", month:"sh
 const TOKEN_KEY = "paytrack_admin_token";
 let timer = null;
 
-async function api(path) {
-  const r = await fetch(path, { headers: { "x-admin-token": sessionStorage.getItem(TOKEN_KEY) || "" } });
+async function api(path, body) {
+  const headers = { "x-admin-token": sessionStorage.getItem(TOKEN_KEY) || "" };
+  if (body) headers["Content-Type"] = "application/json";
+  const r = await fetch(path, body ? { method: "POST", headers, body: JSON.stringify(body) } : { headers });
   const d = await r.json().catch(() => ({}));
   if (!r.ok) { const e = new Error(d.error || "Request failed"); e.status = r.status; throw e; }
   return d;
@@ -227,7 +257,7 @@ function renderPayments(rows) {
     ? rows.map(p => `<li>
         <div>${esc(p.phone)} <span class="chip ${esc(p.status)}">${esc(p.status)}</span></div>
         <div class="amt">${p.status === "paid" ? esc(ksh(p.amount)) : ""}</div>
-        <div class="sub">${esc(when(p.at))}${p.receipt ? " · " + esc(p.receipt) : ""}${p.reason ? " · " + esc(p.reason) : ""}</div>
+        <div class="sub">${p.app ? esc(p.app) + " · " : ""}${esc(when(p.at))}${p.receipt ? " · " + esc(p.receipt) : ""}${p.reason ? " · " + esc(p.reason) : ""}</div>
       </li>`).join("")
     : `<li><span class="empty">No payments yet.</span></li>`;
 }
@@ -245,7 +275,7 @@ function renderDevices(d) {
         <div class="sub">${x.plan === "trial" ? "Trial ends " : x.plan === "paid" ? "Renew by " : "Ended "}${esc(dayOnly(x.expiresAt))}
           · Last paid ${esc(dayOnly(x.lastPaid))}${x.paidCount ? " (" + x.paidCount + "×)" : ""}
           · First seen ${esc(dayOnly(x.firstSeen))}
-          · App ${esc(x.appVersion || "?")} · ID …${esc(x.idTail)}</div>
+          · ${esc(x.app || "App")} v${esc(x.appVersion || "?")} · ID …${esc(x.idTail)}</div>
       </li>`).join("")
     : `<li><span class="empty">No devices match.</span></li>`;
 }
@@ -255,8 +285,56 @@ async function loadDevices() {
   if ($("devSearch").value.trim()) p.set("q", $("devSearch").value.trim());
   if ($("devPlan").value) p.set("plan", $("devPlan").value);
   if ($("devFull").checked) p.set("full", "1");
+  if ($("appPick").value) p.set("app", $("appPick").value);
   renderDevices(await api("/api/admin/devices?" + p.toString()));
 }
+
+async function loadApps() {
+  const apps = await api("/api/admin/apps");
+  window.__apps = apps;
+  const pick = $("appPick"), cur = pick.value;
+  pick.innerHTML = '<option value="">All apps</option>' +
+    apps.map(a => `<option value="${esc(a.id)}">${esc(a.name)}</option>`).join("");
+  pick.value = apps.some(a => a.id === cur) ? cur : "";
+
+  $("appsList").innerHTML = apps.length
+    ? apps.map(a => `<li>
+        <div>${esc(a.name)} <small class="empty">(${esc(a.id)})</small>${a.active ? "" : ' <span class="chip failed">off</span>'}</div>
+        <div class="amt">${esc(ksh(a.price))}</div>
+        <div class="sub">${a.trialDays ? a.trialDays + "-day trial" : "no trial"} · ${a.periodDays} days per payment
+          · all time ${esc(ksh(a.revenue))} (${a.paidCount} payment${a.paidCount === 1 ? "" : "s"})
+          · <a href="#" data-edit="${esc(a.id)}">Edit</a></div>
+      </li>`).join("")
+    : '<li><span class="empty">No apps yet.</span></li>';
+}
+
+$("appsList").addEventListener("click", e => {
+  const link = e.target.closest("[data-edit]");
+  if (!link) return;
+  e.preventDefault();
+  const a = (window.__apps || []).find(x => x.id === link.getAttribute("data-edit"));
+  if (!a) return;
+  $("aId").value = a.id; $("aName").value = a.name; $("aPrice").value = a.price;
+  $("aTrial").value = a.trialDays; $("aPeriod").value = a.periodDays; $("aActive").checked = a.active;
+  $("appDetails").open = true;
+  $("aMsg").textContent = "Editing " + a.name + ". Prices apply to new payments only.";
+  $("aName").focus();
+});
+
+$("aSave").addEventListener("click", async () => {
+  $("aMsg").textContent = "Saving…";
+  try {
+    const r = await api("/api/admin/apps", {
+      id: $("aId").value.trim().toLowerCase(), name: $("aName").value.trim(),
+      price: Number($("aPrice").value), trialDays: Number($("aTrial").value || 0),
+      periodDays: Number($("aPeriod").value || 30), active: $("aActive").checked
+    });
+    $("aMsg").textContent = r.created ? "App added." : "App updated.";
+    load();
+  } catch (e) { $("aMsg").textContent = e.message; }
+});
+
+$("appPick").addEventListener("change", load);
 
 async function recheckPending(btn) {
   btn.disabled = true; btn.textContent = "Checking…";
@@ -272,9 +350,11 @@ $("stuck").addEventListener("click", e => { if (e.target.id === "recheckBtn") re
 
 async function load() {
   try {
+    await loadApps();
+    const app = $("appPick").value ? "&app=" + encodeURIComponent($("appPick").value) : "";
     const [s, p] = await Promise.all([
-      api("/api/admin/summary"),
-      api("/api/admin/payments?limit=50" + ($("filter").value ? "&status=" + $("filter").value : ""))
+      api("/api/admin/summary?x=1" + app),
+      api("/api/admin/payments?limit=50" + app + ($("filter").value ? "&status=" + $("filter").value : ""))
     ]);
     $("login").classList.add("hidden");
     $("app").classList.remove("hidden");
