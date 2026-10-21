@@ -52,9 +52,11 @@ button:focus-visible, input:focus-visible { outline:2px solid var(--ok); outline
 <section class="panel">
   <h2>2. Send an M-PESA prompt</h2>
   <div id="modeBanner" class="banner" style="display:none"></div>
+  <label for="appId">App ID (which app's price to charge)</label>
+  <input id="appId" type="text" value="paytrack" autocapitalize="none">
   <label for="phone">Phone number</label>
   <input id="phone" type="tel" inputmode="tel" placeholder="07XXXXXXXX or 011XXXXXXX">
-  <button id="pay" class="primary" type="button">Send prompt for KSh 50</button>
+  <button id="pay" class="primary" type="button">Send M-PESA prompt</button>
   <div class="row">
     <button id="recheck" type="button" disabled>Check result again</button>
     <button id="copy" type="button">Copy log</button>
@@ -122,19 +124,19 @@ async function runChecks() {
 
     prodMode = d.mode === "PRODUCTION";
     check(prodMode ? null : true, "Mode: " + d.mode,
-          prodMode ? "Live mode. A test prompt charges a real KSh " + d.price + "." : "Sandbox. Real phones may not get a prompt.");
+          prodMode ? "Live mode. A test prompt charges the app's real price." : "Sandbox. Real phones may not get a prompt.");
     check(d.darajaAuth.ok, "Daraja credentials", d.darajaAuth.ok ? "Access token received." : d.darajaAuth.error);
     check(d.callbackReachable.ok, "Callback URL reaches the server",
           d.callbackUrl + (d.callbackReachable.ok ? "" : "  (" + (d.callbackReachable.error || "HTTP " + d.callbackReachable.status) + ")"));
     check(true, "Transaction type: " + d.transactionType, "Shortcode " + d.shortcode + ", pays to " + d.partyB);
     check(d.firestore.ok, "Database (Firebase project " + d.firestore.project + ")",
           d.firestore.ok ? "Read and write test passed." : d.firestore.error);
-    check(true, "Free trial: " + d.trialDays + " day(s)");
+    check(d.apps.length > 0, "Apps: " + (d.apps.length ? d.apps.map(a => a.id + " (KSh " + a.price + (a.active ? "" : ", off") + ")").join(", ") : "none yet"));
     if (d.recent.length) {
       check(true, "Last " + d.recent.length + " attempts",
             d.recent.map(x => x.status + (x.reason ? " (" + x.reason + ")" : "")).join("; "));
     }
-    if (prodMode) { $("modeBanner").style.display = ""; $("modeBanner").textContent = "PRODUCTION: this will charge KSh " + d.price + " to the number you enter."; }
+    if (prodMode) { $("modeBanner").style.display = ""; $("modeBanner").textContent = "PRODUCTION: this will charge the selected app's price to the number you enter."; }
     else $("modeBanner").style.display = "none";
   } catch (e) {
     $("checks").textContent = "";
@@ -151,14 +153,14 @@ async function send() {
   if (busy) return;
   const phone = $("phone").value.trim();
   if (!phone) { log("Enter a phone number.", "warn"); return; }
-  if (prodMode && !confirm("This is PRODUCTION and will charge KSh 50 to " + phone + ". Continue?")) return;
+  if (prodMode && !confirm("This is PRODUCTION and will charge the app's real price to " + phone + ". Continue?")) return;
 
   busy = true; $("pay").disabled = true; $("recheck").disabled = true;
   try {
     log("Sending request for " + phone + " (test device " + DEVICE + ")…");
     const r = await fetch("/api/pay", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ deviceId: DEVICE, phone })
+      body: JSON.stringify({ deviceId: DEVICE, phone, appId: $("appId").value.trim() || "paytrack" })
     });
     const d = await r.json().catch(() => ({}));
     log("Server answered HTTP " + r.status + ": " + JSON.stringify(d), r.ok ? "" : "bad");
@@ -186,7 +188,7 @@ async function send() {
 }
 
 async function showSub() {
-  const r = await fetch("/api/status/" + encodeURIComponent(DEVICE));
+  const r = await fetch("/api/status/" + encodeURIComponent(DEVICE) + "?app=" + encodeURIComponent($("appId").value.trim() || "paytrack"));
   log("Subscription for the test device: " + JSON.stringify(await r.json()), "ok");
 }
 
