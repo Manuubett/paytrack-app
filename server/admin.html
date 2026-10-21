@@ -2,210 +2,399 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Admin | App Store | DEH EMANUELS SOLUTIONS</title>
-<meta name="description" content="Private admin area for the DEH EMANUELS SOLUTIONS App Store.">
-<meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="author" content="Bett Emanuel, DEH EMANUELS SOLUTIONS">
-<meta name="theme-color" content="#09090b">
-<link rel="icon" href="https://dehemanuelssolutions.co.ke/favicon.ico" sizes="any">
-<link rel="icon" type="image/png" sizes="32x32" href="https://dehemanuelssolutions.co.ke/icon-32.png">
-<link rel="apple-touch-icon" sizes="180x180" href="https://dehemanuelssolutions.co.ke/icon-180.png">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,700;0,9..144,900&family=DM+Sans:wght@400;500;600&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Payments admin</title>
 <style>
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{--ink:#09090b;--ink2:#3f3f46;--ink3:#a1a1aa;--paper:#fafaf9;--paper2:#f4f4f5;--paper3:#e4e4e7;--accent:#dc2626;--green:#16a34a;--nav-h:68px}
-html{font-size:15px}
-body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);line-height:1.7;display:flex;flex-direction:column;min-height:100vh}
-nav{position:sticky;top:0;z-index:200;height:var(--nav-h);background:rgba(250,250,249,.92);backdrop-filter:blur(16px);border-bottom:1px solid var(--paper3);display:flex;align-items:center;padding:0 5vw;gap:1rem}
-.nav-logo{display:flex;align-items:center;gap:10px;text-decoration:none;font-family:'Fraunces',serif;font-size:1.1rem;font-weight:700;color:var(--ink);letter-spacing:-.02em}
-.logo-sq{width:36px;height:36px;background:var(--ink);border-radius:8px;overflow:hidden}
-.logo-sq img{width:100%;height:100%;object-fit:cover;display:block}
-.tag{font-family:'Fira Code',monospace;font-size:.68rem;color:var(--accent);letter-spacing:.1em;text-transform:uppercase;margin-left:4px}
-.nav-r{margin-left:auto;display:flex;gap:8px;align-items:center}
-main{max-width:920px;width:100%;margin:0 auto;padding:48px 5vw 80px;flex:1}
-h1{font-family:'Fraunces',serif;font-size:2.2rem;font-weight:900;letter-spacing:-.035em;margin-bottom:6px}
-.sub{color:var(--ink3);font-size:.9rem;margin-bottom:32px}
-.btn{display:inline-flex;align-items:center;gap:6px;padding:10px 20px;border-radius:10px;border:none;font:600 .85rem 'DM Sans',sans-serif;cursor:pointer;background:var(--accent);color:#fff;transition:all .2s;text-decoration:none}
-.btn:hover{background:#b91c1c}
-.btn.dark{background:var(--ink)}.btn.dark:hover{background:#27272a}
-.btn.green{background:var(--green)}
-.btn.out{background:#fff;color:var(--ink2);border:1.5px solid var(--paper3)}
-.btn.sm{padding:7px 12px;font-size:.78rem}
-.btn:disabled{opacity:.5;cursor:not-allowed}
-input,textarea{width:100%;padding:11px 14px;background:#fff;border:1.5px solid var(--paper3);border-radius:10px;font:inherit;font-size:.9rem;color:var(--ink)}
-input:focus,textarea:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-label{display:block;font-size:.76rem;font-weight:600;color:var(--ink2);margin:14px 0 6px}
-.panel{background:#fff;border:1px solid var(--paper3);border-radius:18px;padding:28px;margin-bottom:24px}
-h2{font-family:'Fraunces',serif;font-size:1.3rem;font-weight:700;letter-spacing:-.02em}
-.row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-.prog{height:6px;background:var(--paper3);border-radius:3px;margin-top:16px;overflow:hidden;display:none}
-.prog i{display:block;height:100%;width:0;background:var(--green);transition:width .2s}
-.item{display:flex;align-items:center;gap:14px;padding:14px 0;border-top:1px solid var(--paper3);flex-wrap:wrap}
-.item .ico{font-size:26px;width:46px;height:46px;background:var(--paper2);border-radius:12px;display:grid;place-items:center;flex-shrink:0;overflow:hidden}
-.item .ico img{width:100%;height:100%;object-fit:cover;display:block}
-.info{flex:1;min-width:160px}.n{font-family:'Fraunces',serif;font-weight:700}
-.m{font-family:'Fira Code',monospace;font-size:.68rem;color:var(--ink3)}
-.acts{display:flex;gap:8px;flex-wrap:wrap}
-.hint{font-size:.72rem;color:var(--ink3);margin-top:4px}
-#gate{background:var(--paper2);border:1px solid var(--paper3);border-radius:14px;padding:24px;color:var(--ink2);text-align:center;display:none}
-#app{display:none}
-footer{background:var(--ink);padding:28px 5vw;text-align:center;font-size:.78rem;color:rgba(255,255,255,.35)}
-footer a{color:rgba(255,255,255,.6);text-decoration:none;font-weight:600}
-#toast{position:fixed;bottom:20px;right:20px;background:var(--ink);color:#fff;padding:12px 18px;border-radius:10px;font-size:.84rem;display:none;z-index:999}
-@media(max-width:560px){.row{grid-template-columns:1fr}.tag{display:none}}
+:root {
+  --bg:#f2f5f7; --panel:#fff; --ink:#15232d; --mute:#5d6d78; --line:#dde4e9;
+  --paid:#0f7d3a; --pend:#a86a00; --fail:#b3321f; --bar:#0f7d3a;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg:#10181e; --panel:#18232b; --ink:#e7eef2; --mute:#8fa1ad; --line:#2a3944;
+          --paid:#4cc57c; --pend:#e2a23b; --fail:#ef7a68; --bar:#4cc57c; }
+}
+* { box-sizing:border-box; }
+html { background:var(--bg); color:var(--ink); font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+body { margin:0; padding:16px; max-width:900px; margin-inline:auto; }
+h1 { font-size:20px; margin:0; }
+h2 { font-size:15px; margin:0 0 10px; }
+.top { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:14px; }
+.top small { color:var(--mute); display:block; }
+button, select, input { font:inherit; color:inherit; }
+button { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:8px 12px; cursor:pointer; }
+button.primary { background:var(--paid); border-color:var(--paid); color:#fff; font-weight:600; }
+button:focus-visible, select:focus-visible, input:focus-visible { outline:2px solid var(--paid); outline-offset:2px; }
+.panel { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:14px; }
+.hidden { display:none !important; }
+
+.login { max-width:340px; margin:18vh auto 0; }
+.login input { width:100%; padding:11px; border:1px solid var(--line); border-radius:8px; background:var(--bg); margin:8px 0 12px; }
+.err { color:var(--fail); min-height:20px; margin:8px 0 0; font-size:14px; }
+
+.figures { display:grid; grid-template-columns:repeat(4,1fr); }
+.figures > div { padding:0 12px; border-left:1px solid var(--line); }
+.figures > div:first-child { padding-left:0; border-left:0; }
+.figures span { color:var(--mute); font-size:13px; }
+.figures strong { display:block; font-size:22px; letter-spacing:-.01em; }
+.figures small { color:var(--mute); }
+@media (max-width:600px) {
+  .figures { grid-template-columns:1fr 1fr; row-gap:14px; }
+  .figures > div:nth-child(3) { padding-left:0; border-left:0; }
+}
+
+.two { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+@media (max-width:600px) { .two { grid-template-columns:1fr; } }
+.kv { display:flex; justify-content:space-between; padding:7px 0; border-bottom:1px solid var(--line); }
+.kv:last-child { border-bottom:0; }
+.kv b.paid { color:var(--paid); } .kv b.pend { color:var(--pend); } .kv b.fail { color:var(--fail); }
+
+.alert { border-color:var(--pend); background:color-mix(in srgb, var(--pend) 10%, var(--panel)); }
+#chart { width:100%; height:auto; display:block; }
+#chart text { fill:var(--mute); font-size:11px; }
+
+.rows { list-style:none; margin:0; padding:0; }
+.rows li { display:grid; grid-template-columns:1fr auto; gap:2px 12px; padding:10px 0; border-bottom:1px solid var(--line); }
+.rows li:last-child { border-bottom:0; }
+.rows .sub { color:var(--mute); font-size:13px; overflow-wrap:anywhere; }
+.rows .amt { text-align:right; font-weight:600; }
+.chip { font-size:12px; font-weight:600; }
+.chip.paid { color:var(--paid); } .chip.pending { color:var(--pend); } .chip.failed { color:var(--fail); }
+.empty { color:var(--mute); margin:4px 0; }
+.filters { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
+select { padding:7px 10px; border:1px solid var(--line); border-radius:8px; background:var(--panel); }
+.appform label { display:block; font-size:13px; color:var(--mute); margin:8px 0 4px; }
+.appform input[type=text], .appform input[type=number] { width:100%; padding:9px; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:inherit; font:inherit; }
+details summary { cursor:pointer; color:var(--ok, #0f7d3a); font-weight:600; }
+.rows a { color:inherit; }
 </style>
 </head>
 <body>
-<nav>
-  <a href="https://dehemanuelssolutions.co.ke/" class="nav-logo"><div class="logo-sq"><img src="https://dehemanuelssolutions.co.ke/icon-192.png" alt="DEH EMANUELS SOLUTIONS logo" width="36" height="36"></div>DEH EMANUELS SOLUTIONS<span class="tag">App Store admin</span></a>
-  <div class="nav-r">
-    <a class="btn out" href="https://dehemanuelssolutions.co.ke/appstore.html">View store</a>
-    <button class="btn dark" id="outBtn" style="display:none" onclick="auth.signOut()">Sign out</button>
+
+<section id="login" class="panel login">
+  <h1>Payments admin</h1>
+  <label for="token" class="empty">Admin token</label>
+  <input id="token" type="password" autocomplete="current-password">
+  <button id="signIn" class="primary" style="width:100%">Sign in</button>
+  <p id="loginErr" class="err" role="alert"></p>
+</section>
+
+<main id="app" class="hidden">
+  <div class="top">
+    <div>
+      <h1>Payments admin</h1>
+      <small id="updated">Loading…</small>
+    </div>
+    <div>
+      <select id="appPick" aria-label="Show one app or all apps"><option value="">All apps</option></select>
+      <button id="refresh">Refresh</button>
+      <button id="signOut">Sign out</button>
+    </div>
   </div>
-</nav>
 
-<main>
-  <h1>App Store admin</h1>
-  <p class="sub">Upload APKs, set app icons and preview images, check downloads and ratings, and remove old versions.</p>
+  <div id="stuck" class="panel alert hidden"></div>
 
-  <div class="panel" id="login" style="max-width:440px">
-    <h2>Sign in</h2>
-    <label for="em">Email</label><input id="em" type="email" autocomplete="username">
-    <label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password">
-    <button class="btn" style="margin-top:20px;width:100%;justify-content:center" onclick="signIn()">Sign in</button>
-  </div>
-  <div id="gate"></div>
+  <section class="panel figures" aria-label="Revenue">
+    <div><span>Today</span><strong id="rToday">–</strong><small id="cToday"></small></div>
+    <div><span>Last 7 days</span><strong id="rWeek">–</strong><small id="cWeek"></small></div>
+    <div><span>This month</span><strong id="rMonth">–</strong><small id="cMonth"></small></div>
+    <div><span>All time</span><strong id="rAll">–</strong><small id="cAll"></small></div>
+  </section>
 
-  <div id="app">
+  <section class="panel">
+    <h2>Revenue, last 30 days</h2>
+    <svg id="chart" viewBox="0 0 600 150" role="img" aria-label="Daily revenue for the last 30 days"></svg>
+  </section>
+
+  <div class="two">
     <section class="panel">
-      <h2>Upload a new APK</h2>
-      <div class="row">
-        <div><label for="aName">App name</label><input id="aName" placeholder="My App"></div>
-        <div><label for="aVer">Version</label><input id="aVer" placeholder="1.0.0"></div>
-      </div>
-      <div class="row">
-        <div><label for="aIcon">Icon (image link or one emoji)</label><input id="aIcon" placeholder="https://.../icon.png or 📘" maxlength="300"></div>
-        <div><label for="aFile">APK file</label><input type="file" id="aFile" accept=".apk"></div>
-      </div>
-      <div class="hint">For a real icon, use a square PNG or JPG (512×512, under 100 KB) with a link starting with https://</div>
-      <label for="aOg">Preview image link (optional)</label>
-      <input id="aOg" type="url" placeholder="https://dehemanuelssolutions.co.ke/og/myapp.jpg">
-      <div class="hint">Shown when the app is shared on WhatsApp. Use a 1200×630 JPG or PNG under 300 KB, starting with https://</div>
-      <label for="aDesc">Description</label><textarea id="aDesc" rows="2"></textarea>
-      <label for="aLog">What's new</label><textarea id="aLog" rows="2"></textarea>
-      <div class="prog" id="bar"><i id="barFill"></i></div>
-      <button class="btn green" style="margin-top:18px" id="upBtn" onclick="upload()">Upload APK</button>
+      <h2>Subscribers</h2>
+      <div class="kv"><span>Active</span><b id="sActive" class="paid">–</b></div>
+      <div class="kv"><span>Expiring within 5 days</span><b id="sSoon" class="pend">–</b></div>
+      <div class="kv"><span>Lapsed</span><b id="sLapsed">–</b></div>
     </section>
     <section class="panel">
-      <h2>Published apps</h2>
-      <div id="list"><p class="m" style="margin-top:10px">Loading…</p></div>
+      <h2>Payment attempts, last 30 days</h2>
+      <div class="kv"><span>Paid</span><b id="pPaid" class="paid">–</b></div>
+      <div class="kv"><span>Failed or cancelled</span><b id="pFailed" class="fail">–</b></div>
+      <div class="kv"><span>Success rate</span><b id="pRate">–</b></div>
     </section>
   </div>
+
+  <section class="panel">
+    <h2>Expiring soon</h2>
+    <ul id="expiring" class="rows"></ul>
+  </section>
+
+  <section class="panel">
+    <h2>Apps</h2>
+    <ul id="appsList" class="rows"></ul>
+    <details id="appDetails" style="margin-top:10px">
+      <summary>Add or edit an app</summary>
+      <div class="appform">
+        <label for="aId">App ID (2 to 30 letters, numbers or dashes; the app sends this)</label>
+        <input id="aId" type="text" placeholder="schoolfees" autocapitalize="none">
+        <label for="aName">Name</label>
+        <input id="aName" type="text" placeholder="School Fees" maxlength="40">
+        <label for="aPrice">Price per payment (KSh)</label>
+        <input id="aPrice" type="number" min="1" step="1" placeholder="50">
+        <label for="aTrial">Free trial (days, 0 for none)</label>
+        <input id="aTrial" type="number" min="0" step="1" placeholder="7">
+        <label for="aPeriod">Days of access per payment</label>
+        <input id="aPeriod" type="number" min="1" step="1" placeholder="30">
+        <label><input type="checkbox" id="aActive" checked> Active</label>
+        <button id="aSave" type="button" class="primary" style="width:100%;margin-top:10px">Save app</button>
+        <p id="aMsg" class="empty" role="status"></p>
+      </div>
+    </details>
+  </section>
+
+  <section class="panel">
+    <h2>Devices (<span id="devCount">0</span>)</h2>
+    <p id="devCounts" class="empty"></p>
+    <div class="filters" style="flex-wrap:wrap;gap:8px;">
+      <input id="devSearch" type="search" placeholder="Search phone, model or ID" aria-label="Search devices"
+             style="flex:1;min-width:150px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel);">
+      <select id="devPlan" aria-label="Filter by plan">
+        <option value="">All</option>
+        <option value="paid">Paid</option>
+        <option value="trial">On trial</option>
+        <option value="expired">Expired</option>
+      </select>
+      <label><input type="checkbox" id="devFull"> Full numbers</label>
+    </div>
+    <ul id="devices" class="rows"></ul>
+  </section>
+
+  <section class="panel">
+    <div class="filters">
+      <h2 style="margin:0">Payments</h2>
+      <label><span class="empty">Show </span>
+        <select id="filter">
+          <option value="">All</option>
+          <option value="paid">Paid</option>
+          <option value="pending">Pending</option>
+          <option value="failed">Failed</option>
+        </select>
+      </label>
+    </div>
+    <ul id="payments" class="rows"></ul>
+  </section>
 </main>
 
-<footer>Powered by <a href="https://dehemanuelssolutions.co.ke/" rel="noopener">DEH EMANUELS SOLUTIONS</a> · © 2026</footer>
-<div id="toast" role="status"></div>
-
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
 <script>
-firebase.initializeApp({apiKey:"AIzaSyDPZLbDio7OibE-FEXqFF1OdhM0qZc3yII",authDomain:"divine-treat-450709-b5.firebaseapp.com",projectId:"divine-treat-450709-b5",appId:"1:866518506476:web:e2d3618b61f88e1f6a3ec9"});
-const db=firebase.firestore(),auth=firebase.auth(),BACKEND='https://cbe-y1zb.onrender.com';
-const $=id=>document.getElementById(id);
-const esc=s=>String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const mb=b=>(b/1048576).toFixed(1)+' MB';
-const isHttps=u=>/^https:\/\/\S+$/i.test(u);
-const isIcon=v=>!v||isHttps(v)||[...v].length<=4;
-const iconHtml=v=>isHttps(v||'')?`<img src="${esc(v)}" alt="" onerror="this.replaceWith('📦')">`:(esc(v)||'📦');
-const ogById={},iconById={};
-function toast(m){const t=$('toast');t.textContent=m;t.style.display='block';setTimeout(()=>t.style.display='none',3500);}
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const ksh = n => "KSh " + Number(n || 0).toLocaleString("en-KE");
+const when = t => new Date(t).toLocaleString("en-KE", { day:"numeric", month:"short", hour:"2-digit", minute:"2-digit" });
+const TOKEN_KEY = "paytrack_admin_token";
+let timer = null;
 
-auth.onAuthStateChanged(async u=>{
-  $('app').style.display='none';$('gate').style.display='none';
-  const real=u&&!u.isAnonymous;
-  $('login').style.display=real?'none':'';$('outBtn').style.display=real?'':'none';
-  if(!real)return;
-  const g=$('gate');g.style.display='block';
-  g.textContent='Checking admin access… the server may take up to a minute to wake up.';
-  try{
-    const ctl=new AbortController(),tm=setTimeout(()=>ctl.abort(),90000);
-    const r=await fetch(BACKEND+'/api/apps/me',{headers:{Authorization:'Bearer '+await u.getIdToken()},signal:ctl.signal});
-    clearTimeout(tm);
-    if(!r.ok)throw new Error('Server replied '+r.status+'. Is apps-routes.js deployed?');
-    const d=await r.json();
-    if(d.admin){g.style.display='none';$('app').style.display='block';load();}
-    else g.innerHTML='Signed in as <b>'+esc(u.email)+'</b>, but this account is not an admin.<br>Your UID: <code>'+u.uid+'</code><br>Add it as a document ID in the <code>admins</code> collection.';
-  }catch(e){g.textContent='Could not reach the server: '+e.message;}
+async function api(path, body) {
+  const headers = { "x-admin-token": sessionStorage.getItem(TOKEN_KEY) || "" };
+  if (body) headers["Content-Type"] = "application/json";
+  const r = await fetch(path, body ? { method: "POST", headers, body: JSON.stringify(body) } : { headers });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) { const e = new Error(d.error || "Request failed"); e.status = r.status; throw e; }
+  return d;
+}
+
+function showLogin(msg) {
+  clearInterval(timer);
+  $("app").classList.add("hidden");
+  $("login").classList.remove("hidden");
+  $("loginErr").textContent = msg || "";
+}
+
+function chart(series) {
+  const W = 600, H = 150, top = 14, bottom = 22, n = series.length;
+  const max = Math.max(...series.map(s => s.amount), 1);
+  const bw = W / n, plot = H - top - bottom;
+  const bars = series.map((s, i) => {
+    const h = Math.max(s.amount ? 2 : 0, (s.amount / max) * plot);
+    return `<rect x="${(i * bw + 2).toFixed(1)}" y="${(top + plot - h).toFixed(1)}" width="${(bw - 4).toFixed(1)}" height="${h.toFixed(1)}" rx="2" fill="var(--bar)">
+      <title>${esc(s.day)}: ${esc(ksh(s.amount))} (${s.count} payment${s.count === 1 ? "" : "s"})</title></rect>`;
+  }).join("");
+  $("chart").innerHTML = bars +
+    `<line x1="0" x2="${W}" y1="${top + plot + .5}" y2="${top + plot + .5}" stroke="var(--line)"/>` +
+    `<text x="0" y="${H - 6}">${esc(series[0].day.slice(5))}</text>` +
+    `<text x="${W}" y="${H - 6}" text-anchor="end">${esc(series[n - 1].day.slice(5))}</text>` +
+    `<text x="${W}" y="10" text-anchor="end">Peak ${esc(ksh(max))}</text>`;
+}
+
+function renderSummary(s) {
+  [["Today","today"],["Week","week"],["Month","month"],["All","all"]].forEach(([k, key]) => {
+    $("r" + k).textContent = ksh(s.revenue[key].amount);
+    $("c" + k).textContent = s.revenue[key].count + " payment" + (s.revenue[key].count === 1 ? "" : "s");
+  });
+  $("sActive").textContent = s.subscribers.active;
+  $("sSoon").textContent = s.subscribers.expiringSoon;
+  $("sLapsed").textContent = s.subscribers.lapsed;
+  $("pPaid").textContent = s.last30.paid;
+  $("pFailed").textContent = s.last30.failed;
+  const done = s.last30.paid + s.last30.failed;
+  $("pRate").textContent = done ? Math.round(s.last30.paid / done * 100) + "%" : "–";
+
+  const stuck = $("stuck");
+  if (s.stuckPending > 0) {
+    stuck.classList.remove("hidden");
+    stuck.innerHTML = `<strong>${s.stuckPending} payment${s.stuckPending === 1 ? "" : "s"} pending for over 5 minutes.</strong>
+      The customer may have paid but the callback didn't arrive. The server asks Daraja about these on its own, or you can ask now.
+      <br><button id="recheckBtn" type="button" style="margin-top:8px">Recheck with Daraja</button>`;
+  } else stuck.classList.add("hidden");
+
+  $("expiring").innerHTML = s.expiring.length
+    ? s.expiring.map(e => `<li><div>${esc(e.phone || "Unknown number")}</div>
+        <div class="amt">${Math.ceil((e.expiresAt - s.serverTime) / 864e5)} day(s) left</div>
+        <div class="sub">Expires ${esc(when(e.expiresAt))}</div></li>`).join("")
+    : `<li><span class="empty">Nobody expires in the next 5 days.</span></li>`;
+
+  chart(s.series);
+}
+
+function renderPayments(rows) {
+  $("payments").innerHTML = rows.length
+    ? rows.map(p => `<li>
+        <div>${esc(p.phone)} <span class="chip ${esc(p.status)}">${esc(p.status)}</span></div>
+        <div class="amt">${p.status === "paid" ? esc(ksh(p.amount)) : ""}</div>
+        <div class="sub">${p.app ? esc(p.app) + " · " : ""}${esc(when(p.at))}${p.receipt ? " · " + esc(p.receipt) : ""}${p.reason ? " · " + esc(p.reason) : ""}</div>
+      </li>`).join("")
+    : `<li><span class="empty">No payments yet.</span></li>`;
+}
+
+const dayOnly = t => t ? new Date(t).toLocaleDateString("en-KE", { weekday:"short", day:"numeric", month:"short", year:"numeric" }) : "–";
+
+function renderDevices(d) {
+  $("devCount").textContent = d.total;
+  $("devCounts").textContent = "Paid " + d.counts.paid + " · On trial " + d.counts.trial + " · Expired " + d.counts.expired;
+  $("devices").innerHTML = d.devices.length
+    ? d.devices.map(x => `<li>
+        <div>${esc(x.device || "Unknown device")}${x.phone ? " · " + esc(x.phone) : ""}
+          <span class="chip ${x.plan === "paid" ? "paid" : x.plan === "trial" ? "pending" : "failed"}">${esc(x.plan)}</span></div>
+        <div class="amt">${x.daysLeft > 0 ? x.daysLeft + " d left" : "ended"}</div>
+        <div class="sub">${x.plan === "trial" ? "Trial ends " : x.plan === "paid" ? "Renew by " : "Ended "}${esc(dayOnly(x.expiresAt))}
+          · Last paid ${esc(dayOnly(x.lastPaid))}${x.paidCount ? " (" + x.paidCount + "×)" : ""}
+          · First seen ${esc(dayOnly(x.firstSeen))}
+          · ${esc(x.app || "App")} v${esc(x.appVersion || "?")} · ID …${esc(x.idTail)}</div>
+      </li>`).join("")
+    : `<li><span class="empty">No devices match.</span></li>`;
+}
+
+async function loadDevices() {
+  const p = new URLSearchParams();
+  if ($("devSearch").value.trim()) p.set("q", $("devSearch").value.trim());
+  if ($("devPlan").value) p.set("plan", $("devPlan").value);
+  if ($("devFull").checked) p.set("full", "1");
+  if ($("appPick").value) p.set("app", $("appPick").value);
+  renderDevices(await api("/api/admin/devices?" + p.toString()));
+}
+
+async function loadApps() {
+  const apps = await api("/api/admin/apps");
+  window.__apps = apps;
+  const pick = $("appPick"), cur = pick.value;
+  pick.innerHTML = '<option value="">All apps</option>' +
+    apps.map(a => `<option value="${esc(a.id)}">${esc(a.name)}</option>`).join("");
+  pick.value = apps.some(a => a.id === cur) ? cur : "";
+
+  $("appsList").innerHTML = apps.length
+    ? apps.map(a => `<li>
+        <div>${esc(a.name)} <small class="empty">(${esc(a.id)})</small>${a.active ? "" : ' <span class="chip failed">off</span>'}</div>
+        <div class="amt">${esc(ksh(a.price))}</div>
+        <div class="sub">${a.trialDays ? a.trialDays + "-day trial" : "no trial"} · ${a.periodDays} days per payment
+          · all time ${esc(ksh(a.revenue))} (${a.paidCount} payment${a.paidCount === 1 ? "" : "s"})
+          · <a href="#" data-edit="${esc(a.id)}">Edit</a></div>
+      </li>`).join("")
+    : '<li><span class="empty">No apps yet.</span></li>';
+}
+
+$("appsList").addEventListener("click", e => {
+  const link = e.target.closest("[data-edit]");
+  if (!link) return;
+  e.preventDefault();
+  const a = (window.__apps || []).find(x => x.id === link.getAttribute("data-edit"));
+  if (!a) return;
+  $("aId").value = a.id; $("aName").value = a.name; $("aPrice").value = a.price;
+  $("aTrial").value = a.trialDays; $("aPeriod").value = a.periodDays; $("aActive").checked = a.active;
+  $("appDetails").open = true;
+  $("aMsg").textContent = "Editing " + a.name + ". Prices apply to new payments only.";
+  $("aName").focus();
 });
-async function signIn(){
-  try{await auth.signInWithEmailAndPassword($('em').value.trim(),$('pw').value);}
-  catch(e){toast('Sign in failed: '+e.message.replace('Firebase: ',''));}
-}
-async function api(path,body){
-  const r=await fetch(BACKEND+path,{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+await auth.currentUser.getIdToken()},body:JSON.stringify(body)});
-  const d=await r.json();if(!r.ok)throw new Error(d.error||'Request failed');return d;
-}
-async function load(){
-  const s=await db.collection('apps').orderBy('createdAt','desc').get();
-  $('list').innerHTML=s.empty?'<p class="m" style="margin-top:10px">No apps uploaded yet.</p>':s.docs.map(d=>{
-    const a=d.data(),n=a.ratingCount||0,avg=n?(a.ratingSum/n).toFixed(1)+' ★ ('+n+')':'no ratings';
-    ogById[d.id]=a.ogImage||'';
-    iconById[d.id]=a.icon||'';
-    return `<div class="item"><div class="ico">${iconHtml(a.icon)}</div>
-      <div class="info"><div class="n">${esc(a.name)} <span class="m">v${esc(a.version)}</span></div>
-      <div class="m">${mb(a.size||0)} · ${a.downloads||0} downloads · ${avg} · ${a.ogImage?'preview image set':'no preview image'}</div></div>
-      <div class="acts"><button class="btn out sm" onclick="setIcon('${d.id}')">Icon</button>
-      <button class="btn out sm" onclick="setImage('${d.id}')">Preview image</button>
-      <button class="btn out sm" onclick="del('${d.id}')">Delete</button></div></div>`;
-  }).join('');
-}
-async function upload(){
-  const f=$('aFile').files[0],name=$('aName').value.trim(),version=$('aVer').value.trim(),og=$('aOg').value.trim();
-  if(!f||!name||!version){toast('Add a name, version and APK file');return;}
-  if(!f.name.toLowerCase().endsWith('.apk')){toast('Choose a .apk file');return;}
-  if(og&&!isHttps(og)){toast('Preview image link must start with https://');return;}
-  const ic=$('aIcon').value.trim();
-  if(!isIcon(ic)){toast('Icon must be one emoji or an https:// image link');return;}
-  $('upBtn').disabled=true;$('bar').style.display='block';
-  try{
-    const {uploadUrl,key}=await api('/api/apps/upload-url',{filename:f.name,size:f.size});
-    await new Promise((ok,fail)=>{
-      const x=new XMLHttpRequest();x.open('PUT',uploadUrl);
-      x.setRequestHeader('Content-Type','application/vnd.android.package-archive');
-      x.upload.onprogress=e=>{$('barFill').style.width=(e.loaded/e.total*100)+'%';};
-      x.onload=()=>x.status<300?ok():fail(new Error('Upload failed ('+x.status+'). Check R2 CORS.'));
-      x.onerror=()=>fail(new Error('Network error. Check R2 CORS settings.'));
-      x.send(f);
+
+$("aSave").addEventListener("click", async () => {
+  $("aMsg").textContent = "Saving…";
+  try {
+    const r = await api("/api/admin/apps", {
+      id: $("aId").value.trim().toLowerCase(), name: $("aName").value.trim(),
+      price: Number($("aPrice").value), trialDays: Number($("aTrial").value || 0),
+      periodDays: Number($("aPeriod").value || 30), active: $("aActive").checked
     });
-    await api('/api/apps/create',{key,name,version,size:f.size,icon:ic,desc:$('aDesc').value.trim(),changelog:$('aLog').value.trim(),ogImage:og});
-    toast('Uploaded: '+name);
-    ['aName','aVer','aIcon','aOg','aDesc','aLog','aFile'].forEach(i=>$(i).value='');load();
-  }catch(e){toast(e.message);}
-  $('upBtn').disabled=false;$('bar').style.display='none';$('barFill').style.width='0';
+    $("aMsg").textContent = r.created ? "App added." : "App updated.";
+    load();
+  } catch (e) { $("aMsg").textContent = e.message; }
+});
+
+$("appPick").addEventListener("change", load);
+
+async function recheckPending(btn) {
+  btn.disabled = true; btn.textContent = "Checking…";
+  try {
+    const r = await fetch("/api/admin/recheck", { method: "POST", headers: { "x-admin-token": sessionStorage.getItem(TOKEN_KEY) || "" } });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || "Failed");
+    btn.textContent = "Checked " + d.checked + ", settled " + d.settled;
+    setTimeout(load, 800);
+  } catch (e) { btn.textContent = e.message; btn.disabled = false; }
 }
-async function setIcon(id){
-  const v=prompt('Paste an https image link for the icon, or type one emoji.\nLeave empty to use the default 📦.',iconById[id]||'');
-  if(v===null)return;
-  const val=v.trim();
-  if(!isIcon(val)){toast('Use one emoji or a link starting with https://');return;}
-  try{await api('/api/apps/update',{appId:id,icon:val});toast('Icon saved');load();}
-  catch(e){toast(e.message);}
+$("stuck").addEventListener("click", e => { if (e.target.id === "recheckBtn") recheckPending(e.target); });
+
+async function load() {
+  try {
+    await loadApps();
+    const app = $("appPick").value ? "&app=" + encodeURIComponent($("appPick").value) : "";
+    const [s, p] = await Promise.all([
+      api("/api/admin/summary?x=1" + app),
+      api("/api/admin/payments?limit=50" + app + ($("filter").value ? "&status=" + $("filter").value : ""))
+    ]);
+    $("login").classList.add("hidden");
+    $("app").classList.remove("hidden");
+    renderSummary(s);
+    renderPayments(p);
+    loadDevices().catch(function () {});
+    $("updated").textContent = "Updated " + new Date().toLocaleTimeString("en-KE", { hour:"2-digit", minute:"2-digit" });
+  } catch (e) {
+    if (e.status === 401 || e.status === 429 || e.status === 503) {
+      sessionStorage.removeItem(TOKEN_KEY);
+      showLogin(e.message);
+    } else {
+      $("updated").textContent = "Could not load: " + e.message;
+    }
+  }
 }
-async function setImage(id){
-  const v=prompt('Paste the https link to the preview image.\nLeave empty to remove it.',ogById[id]||'');
-  if(v===null)return;
-  const url=v.trim();
-  if(url&&!isHttps(url)){toast('Link must start with https://');return;}
-  try{await api('/api/apps/update',{appId:id,ogImage:url});toast('Preview image saved');load();}
-  catch(e){toast(e.message);}
+
+function start() {
+  load();
+  clearInterval(timer);
+  timer = setInterval(() => { if (document.visibilityState === "visible") load(); }, 300000);   // every 5 minutes; each load reads from Firestore
 }
-async function del(id){
-  if(!confirm('Delete this app and its APK file?'))return;
-  try{await api('/api/apps/delete',{appId:id});toast('Deleted');load();}catch(e){toast(e.message);}
-}
+
+$("signIn").addEventListener("click", () => {
+  const t = $("token").value.trim();
+  if (!t) return;
+  sessionStorage.setItem(TOKEN_KEY, t);
+  $("token").value = "";
+  start();
+});
+$("token").addEventListener("keydown", e => { if (e.key === "Enter") $("signIn").click(); });
+$("refresh").addEventListener("click", load);
+$("filter").addEventListener("change", load);
+let devTimer = null;
+$("devSearch").addEventListener("input", () => { clearTimeout(devTimer); devTimer = setTimeout(() => loadDevices().catch(() => {}), 300); });
+$("devPlan").addEventListener("change", () => loadDevices().catch(() => {}));
+$("devFull").addEventListener("change", () => loadDevices().catch(() => {}));
+$("signOut").addEventListener("click", () => { sessionStorage.removeItem(TOKEN_KEY); showLogin(""); });
+
+if (sessionStorage.getItem(TOKEN_KEY)) start();
 </script>
 </body>
 </html>
